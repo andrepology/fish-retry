@@ -4,22 +4,14 @@ import { useFrame, RootState, useThree } from '@react-three/fiber'
 import { Html } from '@react-three/drei'
 import * as THREE from 'three'
 
-// Custom hook to get the current cursor target on the XZ plane (pond)
-function useCursorTarget(): THREE.Vector3 {
-  const { mouse, camera } = useThree()
-  const raycaster = new THREE.Raycaster()
-  raycaster.setFromCamera(mouse, camera)
-  const target = new THREE.Vector3()
-  const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0) // XZ plane at y=0
-  raycaster.ray.intersectPlane(plane, target)
-  return target
-}
-
 type Behavior = 'rest' | 'follow' | 'approach'
 
 const Fish: React.FC = () => {
   // Number of tail segments
   const numSegments = 5
+
+  // Get the current mutable mouse and camera objects
+  const { mouse, camera, gl } = useThree()
 
   // Create a ref for the fish head
   const headRef = useRef<THREE.Mesh>(null)
@@ -27,7 +19,7 @@ const Fish: React.FC = () => {
   // For computing head velocity & direction
   const prevHeadPos = useRef(new THREE.Vector3())
   const velocityRef = useRef(new THREE.Vector3())
-  const arrowRef = useRef<THREE.ArrowHelper>(null)
+  const arrowRef = useRef(null)  // we'll create ArrowHelper in useEffect
 
   // Behavior state
   const [behavior, setBehavior] = useState<Behavior>('rest')
@@ -35,9 +27,6 @@ const Fish: React.FC = () => {
   const [restTarget, setRestTarget] = useState(new THREE.Vector3(0, 0, 0))
   // For approach, store the target updated on pointer down
   const [approachTarget, setApproachTarget] = useState(new THREE.Vector3(0, 0, 0))
-
-  // Get the cursor target on the XZ plane regardless of behavior
-  const cursorTarget = useCursorTarget()
 
   // Handle keydown events to switch behavior
   useEffect(() => {
@@ -64,43 +53,60 @@ const Fish: React.FC = () => {
   const tailPositions = useMemo(() => {
     const arr: THREE.Vector3[] = []
     for (let i = 0; i < numSegments; i++) {
-      // Position each tail segment downward from the head initially
+      // Position each tail segment initially a bit behind the head
       arr.push(new THREE.Vector3(0, -(i + 1) * 0.5, 0))
     }
     return arr
   }, [numSegments])
 
-  // Refs for tail segment meshes so we can update their positions directly
+  // Refs for tail segment meshes
   const tailRefs = useRef<(THREE.Mesh | null)[]>([])
   tailRefs.current = new Array(numSegments).fill(null)
+
+  // Create the ArrowHelper (for debugging the head's forward direction)
+  useEffect(() => {
+    if (headRef.current) {
+      const arrow = new THREE.ArrowHelper(
+        new THREE.Vector3(0, 0, 1),
+        headRef.current.position,
+        2,
+        0x00ffff
+      )
+      arrowRef.current = arrow
+      headRef.current.parent && headRef.current.parent.add(arrow)
+    }
+  }, [])
 
   useFrame((state: RootState, delta: number) => {
     // Compute current target based on behavior
     let currentTarget = new THREE.Vector3()
+    const time = state.clock.elapsedTime
+
     if (behavior === 'rest') {
-      // In rest mode, use restTarget with a bobbing oscillation in Y
-      const time = state.clock.elapsedTime
+      // In rest mode, use restTarget with a slight bobbing in Y
       const bobbing = Math.sin(time * 3) * 0.1
       currentTarget.copy(restTarget)
       currentTarget.y += bobbing
     } else if (behavior === 'follow') {
-      // In follow mode, use the cursor target (restrict Y to 0)
-      currentTarget.copy(cursorTarget)
-      currentTarget.y = 0
+      // In follow mode, compute cursor target on XZ plane each frame
+      const raycaster = new THREE.Raycaster()
+      raycaster.setFromCamera(mouse, camera)
+      const followTargetCursor = new THREE.Vector3()
+      const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
+      raycaster.ray.intersectPlane(plane, followTargetCursor)
+      followTargetCursor.y = 0  // force on XZ plane
+      currentTarget.copy(followTargetCursor)
     } else if (behavior === 'approach') {
-      // In approach mode, use the approach target (restrict Y to 0)
+      // In approach mode, use the stored approach target (ensure Y=0)
       currentTarget.copy(approachTarget)
       currentTarget.y = 0
     }
 
-    // Update head position by lerping towards the current target
+    // Update head position by lerping toward the current target
     if (headRef.current) {
       headRef.current.position.lerp(currentTarget, 0.02)
-      // Ensure head moves on XZ only (maintain fixed y if not in rest mode)
-      if (behavior !== 'rest') {
-        headRef.current.position.y = 0
-      }
-      // Compute velocity (difference from previous head position) for debugging and wave adjustments
+      if (behavior !== 'rest') headRef.current.position.y = 0
+      // Compute head velocity for direction computing
       velocityRef.current.copy(headRef.current.position).sub(prevHeadPos.current)
       prevHeadPos.current.copy(headRef.current.position)
     }
@@ -118,51 +124,52 @@ const Fish: React.FC = () => {
       arrowRef.current.setDirection(headDir)
     }
 
-    // Compute a perpendicular direction to the head's forward direction in the XZ plane
+    // Compute a perpendicular direction to head's forward direction on the XZ plane
     const perp = new THREE.Vector3(-headDir.z, 0, headDir.x)
-    // Compute speedFactor based on head velocity (ensure minimal oscillation in rest)
+    // Compute speedFactor for wave amplitude scaling
     const speedFactor = THREE.MathUtils.clamp(velocityRef.current.length() * 10, 0.2, 1)
 
-    // Update tail segments to follow the head in a chain-like manner with a sinusoidal wave offset along the perpendicular direction
-    let followTarget = headRef.current ? headRef.current.position.clone() : new THREE.Vector3()
-    for (let i = 0; i < numSegments; i++) {
-      tailPositions[i].lerp(followTarget, 0.1)
-      // Base amplitude decreases with segment index
-      const baseAmplitude = 0.2 * (1 - i / numSegments)
-      // Scale amplitude by speedFactor so the wave is reduced in rest mode (when velocity is low)
-      const waveAmplitude = baseAmplitude * speedFactor
-      const waveOffsetScalar = Math.sin(state.clock.elapsedTime * 3 + i * 0.5) * waveAmplitude
-      // Instead of offsetting only along the world X axis, offset along the perpendicular to the head direction
-      tailPositions[i].add(new THREE.Vector3().copy(perp).multiplyScalar(waveOffsetScalar))
-      followTarget = tailPositions[i].clone()
-      if (tailRefs.current[i]) {
-        tailRefs.current[i].position.copy(tailPositions[i])
+    // Update tail segments
+    if (behavior === 'rest') {
+      // In rest mode, position tail segments along a straight line behind the head
+      for (let i = 0; i < numSegments; i++) {
+        // Use headDir (if moving, else default to forward) to position tail segments at fixed spacing
+        const spacing = 0.5
+        const desiredPos = new THREE.Vector3().copy(headRef.current.position).addScaledVector(headDir, -spacing * (i + 1))
+        // Optionally, add a subtle lerp to smooth rapid changes
+        tailPositions[i].lerp(desiredPos, 0.2)
+        if (tailRefs.current[i]) {
+          tailRefs.current[i].position.copy(tailPositions[i])
+        }
+      }
+    } else {
+      // In follow/approach mode, use chain-like update with sinusoidal wave offset
+      let followTarget = headRef.current ? headRef.current.position.clone() : new THREE.Vector3()
+      for (let i = 0; i < numSegments; i++) {
+        tailPositions[i].lerp(followTarget, 0.1)
+        const baseAmplitude = 0.2 * (1 - i / numSegments)
+        const waveAmplitude = baseAmplitude * speedFactor
+        const waveOffsetScalar = Math.sin(state.clock.elapsedTime * 3 + i * 0.5) * waveAmplitude
+        tailPositions[i].add(new THREE.Vector3().copy(perp).multiplyScalar(waveOffsetScalar))
+        followTarget = tailPositions[i].clone()
+        if (tailRefs.current[i]) {
+          tailRefs.current[i].position.copy(tailPositions[i])
+        }
       }
     }
   })
 
-  // Create ArrowHelper on mount
-  useEffect(() => {
-    if (headRef.current) {
-      const arrow = new THREE.ArrowHelper(
-        new THREE.Vector3(0, 0, 1),
-        headRef.current.position,
-        2,
-        0x00ffff
-      )
-      arrowRef.current = arrow
-      headRef.current.parent?.add(arrow)
-    }
-  }, [])
-
   return (
     <>
-      {/* An invisible plane to capture pointer events in approach mode */}
+      {/* Invisible plane to capture pointer events in approach mode */}
       <mesh
         onPointerDown={(e) => {
           if (behavior === 'approach') {
-            setApproachTarget(e.point.clone())
-            console.log('Approach target set:', e.point)
+            // Force Y = 0
+            const pt = e.point.clone()
+            pt.y = 0
+            setApproachTarget(pt)
+            console.log('Approach target set:', pt)
           }
         }}
         position={[0, 0, 0]}
@@ -209,8 +216,14 @@ const Fish: React.FC = () => {
               t.copy(restTarget)
               t.y += Math.sin(Date.now() * 0.003) * 0.1
             } else if (behavior === 'follow') {
-              t.copy(cursorTarget)
-              t.y = 0
+              // Recompute cursor target for debug
+              const raycaster = new THREE.Raycaster()
+              raycaster.setFromCamera(mouse, camera)
+              const ct = new THREE.Vector3()
+              const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
+              raycaster.ray.intersectPlane(plane, ct)
+              ct.y = 0
+              t.copy(ct)
             } else if (behavior === 'approach') {
               t.copy(approachTarget)
               t.y = 0
