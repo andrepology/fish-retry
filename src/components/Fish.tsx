@@ -73,62 +73,29 @@ const Fish: React.FC = () => {
 
     const time = state.clock.elapsedTime
     let currentTarget = new THREE.Vector3()
+    const spacing = 0.5  // Constant spacing between segments
+
+    // Motion parameters
+    const swayFreq = 1.0
+    const bobFreq = 1.2
+    const swayAmplitude = 0.1
+    const bobAmplitude = 0.3
 
     if (behavior === 'rest') {
       // Calculate head motion first
-      const headSwayFreq = 1.0
-      const headBobFreq = 1.2
-      const headSwayAmplitude = 0.1
-      const headBobAmplitude = 0.3
-      
-      // Calculate head sway and bob
-      const headSway = Math.sin(time * headSwayFreq) * headSwayAmplitude
-      const headBob = Math.sin(time * headBobFreq) * headBobAmplitude
+      const headSway = Math.sin(time * swayFreq) * swayAmplitude
+      const headBob = Math.sin(time * bobFreq) * bobAmplitude
 
       // Apply to head position
       const perpSway = new THREE.Vector3(-restDirection.z, 0, restDirection.x)
       currentTarget.copy(restTarget)
         .add(perpSway.multiplyScalar(headSway))
         .add(new THREE.Vector3(0, headBob, 0))
-
+      
       // Update head position with the new motion
       headRef.current.position.lerp(currentTarget, 0.1)
-
-      // Update tail segments with phase-shifted motion from head
-      for (let i = 0; i < numSegments; i++) {
-        const spacing = 0.5
-        // Add downward curve to the base position
-        const droopAmount = 0.15 * (i / numSegments) ** 2  // Quadratic droop increases toward tail end
-        const basePos = new THREE.Vector3()
-          .copy(headRef.current.position)
-          .addScaledVector(restDirection, -spacing * (i + 1))
-          .add(new THREE.Vector3(0, -droopAmount, 0))  // Apply droop
-        
-        // Add side-to-side swaying (phase shifted from head)
-        const swayPhase = i * 0.2  // phase offset along spine
-        const swayAmplitude = headSwayAmplitude * (1 - i / (numSegments * 1.5))  // attenuated amplitude
-        const sway = Math.sin(time * headSwayFreq + swayPhase) * swayAmplitude
-        
-        // Add up-down motion (phase shifted from head)
-        const bobPhase = i * 0.15
-        const bobAmplitude = headBobAmplitude * (1 - i / (numSegments * 1.5))
-        const bob = Math.sin(time * headBobFreq + bobPhase) * bobAmplitude
-
-        // Compute perpendicular vector for sway direction
-        const perpSway = new THREE.Vector3(-restDirection.z, 0, restDirection.x)
-        
-        // Apply both motions
-        const desiredPos = basePos.clone()
-          .add(perpSway.multiplyScalar(sway))
-          .add(new THREE.Vector3(0, bob, 0))
-        
-        // Smooth transition to new position
-        tailPositions[i].lerp(desiredPos, 0.1)
-        if (tailRefs.current[i]) {
-          tailRefs.current[i].position.copy(tailPositions[i])
-        }
-      }
     } else if (behavior === 'follow') {
+      // Compute target from mouse pointer on XZ plane
       const raycaster = new THREE.Raycaster()
       raycaster.setFromCamera(mouse, camera)
       const followTargetCursor = new THREE.Vector3()
@@ -136,9 +103,11 @@ const Fish: React.FC = () => {
       raycaster.ray.intersectPlane(plane, followTargetCursor)
       followTargetCursor.y = 0
       currentTarget.copy(followTargetCursor)
+      headRef.current.position.lerp(currentTarget, 0.02)
     } else if (behavior === 'approach') {
       currentTarget.copy(approachTarget)
       currentTarget.y = 0
+      headRef.current.position.lerp(currentTarget, 0.02)
     }
 
     // Update velocity
@@ -161,59 +130,53 @@ const Fish: React.FC = () => {
       arrowRef.current.setDirection(headDir)
     }
 
-    // Compute perpendicular vector for tail wave
-    const perp = new THREE.Vector3(-headDir.z, 0, headDir.x)
-    const speedFactor = THREE.MathUtils.clamp(velocityRef.current.length() * 10, 0.2, 1)
+    // Update tail segments for all behaviors
+    let prevPos = headRef.current.position.clone()
+    for (let i = 0; i < numSegments; i++) {
+      // Base position with spacing
+      const basePos = new THREE.Vector3()
+        .copy(prevPos)
+        .addScaledVector(headDir, -spacing)
 
-    // Update tail segments
-    if (behavior === 'rest') {
-      // In rest mode, add gentle swaying and bobbing
-      for (let i = 0; i < numSegments; i++) {
-        const spacing = 0.5
-        const basePos = new THREE.Vector3()
-          .copy(headRef.current.position)
-          .addScaledVector(restDirection, -spacing * (i + 1))
-        
-        // Add gentle side-to-side swaying (attenuated along the spine)
-        const swayFreq = 1.0  // slower frequency for rest
-        const swayPhase = i * 0.2  // phase offset along spine
-        const swayAmplitude = 0.3 * (1 - i / (numSegments * 2))  // attenuated amplitude
-        const sway = Math.sin(time * swayFreq + swayPhase) * swayAmplitude
-        
-        // Add subtle up-down motion (also attenuated)
-        const bobFreq = 1.2  // slightly different frequency for variety
+      if (behavior === 'rest') {
+        // Add downward droop in rest mode
+        const droopAmount = 0.15 * (i / numSegments) ** 2
+        basePos.y -= droopAmount
+
+        // Add attenuated motion
+        const swayPhase = i * 0.2
         const bobPhase = i * 0.15
-        const bobAmplitude = 0.03 * (1 - i / (numSegments * 2))
-        const bob = Math.sin(time * bobFreq + bobPhase) * bobAmplitude
+        const attenuation = 1 - i / (numSegments * 1.5)
+        
+        const sway = Math.sin(time * swayFreq + swayPhase) * (swayAmplitude * attenuation)
+        const bob = Math.sin(time * bobFreq + bobPhase) * (bobAmplitude * attenuation)
 
-        // Compute perpendicular vector for sway direction
-        const perpSway = new THREE.Vector3(-restDirection.z, 0, restDirection.x)
+        // Compute perpendicular vector for sway
+        const perpSway = new THREE.Vector3(-headDir.z, 0, headDir.x)
         
-        // Apply both motions
-        const desiredPos = basePos.clone()
-          .add(perpSway.multiplyScalar(sway))
-          .add(new THREE.Vector3(0, bob, 0))
-        
-        // Smooth transition to new position
-        tailPositions[i].lerp(desiredPos, 0.1)
-        if (tailRefs.current[i]) {
-          tailRefs.current[i].position.copy(tailPositions[i])
-        }
-      }
-    } else {
-      // In other modes, use chain-like update with wave
-      let followTarget = headRef.current.position.clone()
-      for (let i = 0; i < numSegments; i++) {
-        tailPositions[i].lerp(followTarget, 0.1)
+        // Apply motions
+        basePos.add(perpSway.multiplyScalar(sway))
+        basePos.y += bob
+      } else {
+        // In follow/approach mode, add wave motion based on speed
+        const speedFactor = THREE.MathUtils.clamp(velocityRef.current.length() * 10, 0.2, 1)
         const baseAmplitude = 0.2 * (1 - i / numSegments)
         const waveAmplitude = baseAmplitude * speedFactor
         const waveOffset = Math.sin(time * 3 + i * 0.5) * waveAmplitude
-        tailPositions[i].add(perp.clone().multiplyScalar(waveOffset))
-        followTarget = tailPositions[i].clone()
-        if (tailRefs.current[i]) {
-          tailRefs.current[i].position.copy(tailPositions[i])
-        }
+        const perp = new THREE.Vector3(-headDir.z, 0, headDir.x)
+        basePos.add(perp.multiplyScalar(waveOffset))
       }
+
+      // Smooth transition to new position
+      tailPositions[i].lerp(basePos, 0.1)
+      
+      // Update mesh position
+      if (tailRefs.current[i]) {
+        tailRefs.current[i].position.copy(tailPositions[i])
+      }
+
+      // Update previous position for next segment
+      prevPos = tailPositions[i].clone()
     }
   })
 
@@ -238,14 +201,38 @@ const Fish: React.FC = () => {
       <group>
         {/* Fish Head */}
         <mesh ref={headRef}>
+          {/* Use ellipsoid shape for head by scaling a sphere */}
           <sphereGeometry args={[0.5, 16, 16]} />
-          <meshStandardMaterial color="orange" />
+          <meshStandardMaterial 
+            color="#FF7F50"  // Coral orange
+            roughness={0.6}
+            metalness={0.2}
+          />
+          <primitive object={new THREE.Object3D()} scale={[1.2, 0.85, 1]} />
         </mesh>
 
         {/* Tail Segments */}
         {tailPositions.map((pos, idx) => {
-          // Calculate tapering radius for each segment
-          const radius = 0.5 * (1 - (idx + 1) / (numSegments + 1))
+          // More dramatic tapering for a fish-like silhouette
+          const segmentProgress = idx / numSegments
+          // Exponential falloff for more natural tapering
+          const taperFactor = Math.pow(1 - segmentProgress, 1.2)
+          
+          // Start wider at the body and taper more aggressively toward tail
+          const baseRadius = 0.5
+          const radius = baseRadius * taperFactor * (1 - (idx + 1) / (numSegments + 2))
+          
+          // Vertical compression increases toward tail
+          const verticalScale = 0.85 - (segmentProgress * 0.15)
+          
+          // Color gradient from body to tail
+          const color = new THREE.Color()
+          color.setHSL(
+            0.05,  // Orange-red hue
+            0.8,   // Saturation
+            0.5 - (segmentProgress * 0.2)  // Lightness decreases toward tail
+          )
+
           return (
             <mesh
               key={idx}
@@ -253,7 +240,12 @@ const Fish: React.FC = () => {
               position={pos}
             >
               <sphereGeometry args={[radius, 12, 12]} />
-              <meshStandardMaterial color="red" />
+              <meshStandardMaterial 
+                color={color}
+                roughness={0.7}
+                metalness={0.1}
+              />
+              <primitive object={new THREE.Object3D()} scale={[1, verticalScale, 1]} />
             </mesh>
           )
         })}
