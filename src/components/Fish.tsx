@@ -115,12 +115,14 @@ const Fish: React.FC = () => {
       headRef.current.position.lerp(currentTarget, 0.02)
     } else if (behavior === 'wander') {
       const wanderParams = {
-        forwardDistance: 1,
+        visionDistance: 5,      // How far ahead the fish can "see"
+        forwardDistance: 2.5,   // How far ahead to place the actual target
         radius: 1,
         updateInterval: 0.8,
         arrivalThreshold: 0.3,
-        bounds: { min: -20, max: 20 },  // Reduced bounds for better visibility
-        lerpSpeed: 0.01
+        bounds: { min: -20, max: 20 },
+        lerpSpeed: 0.01,
+        boundaryBuffer: 3       // Start avoiding when this far from bounds
       }
 
       // Ensure fish stays within bounds
@@ -147,7 +149,15 @@ const Fish: React.FC = () => {
         forward.copy(restDirection)
       }
 
-      // Check if current target is out of bounds or too far
+      // Check vision point for obstacles
+      const visionPoint = currentPos.clone().add(forward.clone().multiplyScalar(wanderParams.visionDistance))
+      const isVisionPointOutOfBounds = 
+        visionPoint.x < wanderParams.bounds.min + wanderParams.boundaryBuffer ||
+        visionPoint.x > wanderParams.bounds.max - wanderParams.boundaryBuffer ||
+        visionPoint.z < wanderParams.bounds.min + wanderParams.boundaryBuffer ||
+        visionPoint.z > wanderParams.bounds.max - wanderParams.boundaryBuffer
+
+      // Check if current target is out of bounds
       const isTargetOutOfBounds = 
         wanderTargetRef.current.x < wanderParams.bounds.min ||
         wanderTargetRef.current.x > wanderParams.bounds.max ||
@@ -157,20 +167,16 @@ const Fish: React.FC = () => {
       const shouldUpdateTarget = 
         time - lastWanderUpdateRef.current > wanderParams.updateInterval || 
         headRef.current.position.distanceTo(wanderTargetRef.current) < wanderParams.arrivalThreshold ||
-        isTargetOutOfBounds
+        isTargetOutOfBounds ||
+        isVisionPointOutOfBounds
 
       if (shouldUpdateTarget) {
-        // If near bounds, bias direction towards center
-        const distanceToCenter = currentPos.length()
-        const boundaryThreshold = wanderParams.bounds.max * 0.8
-        
         let targetBase
-        if (distanceToCenter > boundaryThreshold) {
-          // Point towards center when near bounds
-          targetBase = currentPos.clone().negate().normalize()
-          targetBase.y = 0
-          targetBase.multiplyScalar(wanderParams.forwardDistance)
-          targetBase.add(currentPos)
+        if (isVisionPointOutOfBounds) {
+          // Calculate direction to center when obstacle detected
+          const toCenter = new THREE.Vector3(0, 0, 0).sub(currentPos).normalize()
+          targetBase = currentPos.clone()
+          targetBase.add(toCenter.multiplyScalar(wanderParams.forwardDistance))
         } else {
           // Normal forward-based targeting
           targetBase = currentPos.clone()
@@ -307,9 +313,8 @@ const Fish: React.FC = () => {
           {/* Use ellipsoid shape for head by scaling a sphere */}
           <sphereGeometry args={[0.5, 16, 16]} />
           <meshStandardMaterial 
-            color="#FF7F50"  // Coral orange
-            roughness={0.6}
-            metalness={0.2}
+            color="#EOB0FF"  // Coral orange
+            
           />
           <primitive object={new THREE.Object3D()} scale={[1.2, 0.85, 1]} />
         </mesh>
@@ -331,9 +336,9 @@ const Fish: React.FC = () => {
           // Color gradient from body to tail
           const color = new THREE.Color()
           color.setHSL(
-            0.05,  // Orange-red hue
-            0.8,   // Saturation
-            0.5 - (segmentProgress * 0.2)  // Lightness decreases toward tail
+            0.77,  // Orange-red hue
+            1.0,   // Saturation
+            0.85 - (segmentProgress * 0.2)  // Lightness decreases toward tail
           )
 
           return (

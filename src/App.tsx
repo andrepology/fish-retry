@@ -12,9 +12,8 @@ const App = () => {
           {/* Use an orthographic camera positioned overhead, looking down */}
           <OrthographicCamera makeDefault position={[0, 50, 0]} rotation={[-Math.PI / 2, 0, 0]} zoom={50} near={0.1} far={1000} />
           {/* Add a primitive AmbientLight */}
-          <primitive object={new THREE.AmbientLight(0xffffff, 0.5)} />
+          <primitive object={new THREE.AmbientLight(0xffffff, 1.0)} />
           {/* Add a primitive PointLight */}
-          <primitive object={new THREE.PointLight(0xffffff, 1)} position={[10, 10, 10]} />
           <Fish />
         </Canvas>
       </Suspense>
