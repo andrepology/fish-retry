@@ -4,7 +4,7 @@ import { useFrame, RootState, useThree } from '@react-three/fiber'
 import { Html } from '@react-three/drei'
 import * as THREE from 'three'
 
-type Behavior = 'rest' | 'follow' | 'approach'
+type Behavior = 'rest' | 'follow' | 'approach' | 'wander'
 
 const Fish: React.FC = () => {
   // Increase number of tail segments for more fish-like shape
@@ -15,6 +15,8 @@ const Fish: React.FC = () => {
   const prevHeadPos = useRef(new THREE.Vector3())
   const velocityRef = useRef(new THREE.Vector3())
   const arrowRef = useRef(null)
+  const wanderTargetRef = useRef(new THREE.Vector3())
+  const lastWanderUpdateRef = useRef(0)
 
   const [behavior, setBehavior] = useState<Behavior>('rest')
   const [restTarget, setRestTarget] = useState(new THREE.Vector3(0, 0, 0))
@@ -38,6 +40,13 @@ const Fish: React.FC = () => {
         setBehavior('follow')
       } else if (event.key.toLowerCase() === 'a') {
         setBehavior('approach')
+      } else if (event.key.toLowerCase() === 'w') {
+        setBehavior('wander')
+        if(headRef.current){
+          // Initialize wander target as the current head position
+          wanderTargetRef.current.copy(headRef.current.position);
+          lastWanderUpdateRef.current = 0;
+        }
       }
     }
     window.addEventListener('keydown', onKeyDown)
@@ -104,6 +113,100 @@ const Fish: React.FC = () => {
       followTargetCursor.y = 0
       currentTarget.copy(followTargetCursor)
       headRef.current.position.lerp(currentTarget, 0.02)
+    } else if (behavior === 'wander') {
+      const wanderParams = {
+        forwardDistance: 1,
+        radius: 1,
+        updateInterval: 0.8,
+        arrivalThreshold: 0.3,
+        bounds: { min: -20, max: 20 },  // Reduced bounds for better visibility
+        lerpSpeed: 0.01
+      }
+
+      // Ensure fish stays within bounds
+      const currentPos = headRef.current.position.clone()
+      currentPos.x = THREE.MathUtils.clamp(
+        currentPos.x,
+        wanderParams.bounds.min,
+        wanderParams.bounds.max
+      )
+      currentPos.z = THREE.MathUtils.clamp(
+        currentPos.z,
+        wanderParams.bounds.min,
+        wanderParams.bounds.max
+      )
+      headRef.current.position.copy(currentPos)
+
+      // Get current forward direction (ensure it's on XZ plane)
+      const forward = new THREE.Vector3()
+      if (velocityRef.current.length() > 0.001) {
+        forward.copy(velocityRef.current)
+        forward.y = 0  // Force to XZ plane
+        forward.normalize()
+      } else {
+        forward.copy(restDirection)
+      }
+
+      // Check if current target is out of bounds or too far
+      const isTargetOutOfBounds = 
+        wanderTargetRef.current.x < wanderParams.bounds.min ||
+        wanderTargetRef.current.x > wanderParams.bounds.max ||
+        wanderTargetRef.current.z < wanderParams.bounds.min ||
+        wanderTargetRef.current.z > wanderParams.bounds.max
+
+      const shouldUpdateTarget = 
+        time - lastWanderUpdateRef.current > wanderParams.updateInterval || 
+        headRef.current.position.distanceTo(wanderTargetRef.current) < wanderParams.arrivalThreshold ||
+        isTargetOutOfBounds
+
+      if (shouldUpdateTarget) {
+        // If near bounds, bias direction towards center
+        const distanceToCenter = currentPos.length()
+        const boundaryThreshold = wanderParams.bounds.max * 0.8
+        
+        let targetBase
+        if (distanceToCenter > boundaryThreshold) {
+          // Point towards center when near bounds
+          targetBase = currentPos.clone().negate().normalize()
+          targetBase.y = 0
+          targetBase.multiplyScalar(wanderParams.forwardDistance)
+          targetBase.add(currentPos)
+        } else {
+          // Normal forward-based targeting
+          targetBase = currentPos.clone()
+          targetBase.add(forward.multiplyScalar(wanderParams.forwardDistance))
+        }
+
+        // Calculate random offset within radius (on XZ plane)
+        const angle = Math.random() * Math.PI * 2
+        const offsetLength = Math.random() * wanderParams.radius
+        const offset = new THREE.Vector3(
+          Math.cos(angle),
+          0,
+          Math.sin(angle)
+        ).multiplyScalar(offsetLength)
+
+        // Apply offset and clamp to bounds
+        const newTarget = targetBase.clone().add(offset)
+        newTarget.x = THREE.MathUtils.clamp(
+          newTarget.x,
+          wanderParams.bounds.min,
+          wanderParams.bounds.max
+        )
+        newTarget.z = THREE.MathUtils.clamp(
+          newTarget.z,
+          wanderParams.bounds.min,
+          wanderParams.bounds.max
+        )
+        newTarget.y = 0
+
+        wanderTargetRef.current.copy(newTarget)
+        lastWanderUpdateRef.current = time
+      }
+
+      currentTarget.copy(wanderTargetRef.current)
+      currentTarget.y = 0
+      headRef.current.position.lerp(currentTarget, wanderParams.lerpSpeed)
     } else if (behavior === 'approach') {
       currentTarget.copy(approachTarget)
       currentTarget.y = 0
@@ -158,7 +261,7 @@ const Fish: React.FC = () => {
         basePos.add(perpSway.multiplyScalar(sway))
         basePos.y += bob
       } else {
-        // In follow/approach mode, add wave motion based on speed
+        // In follow/approach/wander modes, add wave motion based on speed
         const speedFactor = THREE.MathUtils.clamp(velocityRef.current.length() * 10, 0.2, 1)
         const baseAmplitude = 0.2 * (1 - i / numSegments)
         const waveAmplitude = baseAmplitude * speedFactor
@@ -282,6 +385,9 @@ const Fish: React.FC = () => {
             } else if (behavior === 'approach') {
               t.copy(approachTarget)
               t.y = 0
+            } else if (behavior === 'wander') {
+              t.copy(wanderTargetRef.current)
+              t.y = 0
             }
             return `${t.x.toFixed(2)}, ${t.y.toFixed(2)}, ${t.z.toFixed(2)}`
           })()}
@@ -292,6 +398,25 @@ const Fish: React.FC = () => {
       {behavior === 'approach' && (
         <Html position={approachTarget} style={{ pointerEvents: 'none' }}>
           <div style={{ color: 'red', fontSize: '24px', fontWeight: 'bold' }}>X</div>
+        </Html>
+      )}
+
+      {/* Wander Target Marker */}
+      {behavior === 'wander' && (
+        <Html
+          position={wanderTargetRef.current}
+          style={{ pointerEvents: 'none' }}
+          // Force marker to update by using a key based on position
+          key={`wander-${wanderTargetRef.current.x.toFixed(3)}-${wanderTargetRef.current.z.toFixed(3)}`}
+        >
+          <div style={{
+            color: '#4169E1',
+            fontSize: '16px',
+            fontWeight: 'bold',
+            opacity: 0.8,
+            transform: 'translate(-50%, -50%)',
+            pointerEvents: 'none'
+          }}>×</div>
         </Html>
       )}
     </>
