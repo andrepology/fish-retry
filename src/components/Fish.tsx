@@ -66,6 +66,13 @@ const Fish: React.FC = () => {
 
   useEffect(() => {
     if (headRef.current) {
+      // Cleanup any existing arrow first
+      if (arrowRef.current && headRef.current.parent) {
+        headRef.current.parent.remove(arrowRef.current)
+        arrowRef.current.dispose()
+        arrowRef.current = null
+      }
+
       const arrow = new THREE.ArrowHelper(
         new THREE.Vector3(0, 0, 1),
         headRef.current.position,
@@ -74,6 +81,16 @@ const Fish: React.FC = () => {
       )
       arrowRef.current = arrow
       headRef.current.parent?.add(arrow)
+
+      return () => {
+        if (arrowRef.current && headRef.current?.parent) {
+          headRef.current.parent.remove(arrowRef.current)
+          if (arrowRef.current.line) arrowRef.current.line.geometry.dispose()
+          if (arrowRef.current.cone) arrowRef.current.cone.geometry.dispose()
+          arrowRef.current.dispose()
+          arrowRef.current = null
+        }
+      }
     }
   }, [])
 
