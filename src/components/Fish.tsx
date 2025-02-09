@@ -8,7 +8,7 @@ type Behavior = 'rest' | 'follow' | 'approach' | 'wander'
 
 const Fish: React.FC = () => {
   // Increase number of tail segments for more fish-like shape
-  const numSegments = 8
+  const numSegments = 16
 
   const { mouse, camera } = useThree()
   const headRef = useRef<THREE.Mesh>(null)
