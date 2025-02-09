@@ -18,6 +18,9 @@ const Fish: React.FC = () => {
   const wanderTargetRef = useRef(new THREE.Vector3())
   const lastWanderUpdateRef = useRef(0)
 
+  // New state added for wander target reactive updates:
+  const [wanderTargetState, setWanderTargetState] = useState(new THREE.Vector3(0, 0, 0))
+
   const [behavior, setBehavior] = useState<Behavior>('rest')
   const [restTarget, setRestTarget] = useState(new THREE.Vector3(0, 0, 0))
   const [restDirection, setRestDirection] = useState(new THREE.Vector3(0, 0, 1))
@@ -46,6 +49,7 @@ const Fish: React.FC = () => {
           // Initialize wander target as the current head position
           wanderTargetRef.current.copy(headRef.current.position);
           lastWanderUpdateRef.current = 0;
+          setWanderTargetState(headRef.current.position.clone())
         }
       }
     }
@@ -76,7 +80,7 @@ const Fish: React.FC = () => {
       const arrow = new THREE.ArrowHelper(
         new THREE.Vector3(0, 0, 1),
         headRef.current.position,
-        2,
+        1.5,
         0x00ffff
       )
       arrowRef.current = arrow
@@ -225,6 +229,9 @@ const Fish: React.FC = () => {
 
         wanderTargetRef.current.copy(newTarget)
         lastWanderUpdateRef.current = time
+
+        // Update the state so React triggers a re-render of the marker
+        setWanderTargetState(newTarget.clone())
       }
 
       currentTarget.copy(wanderTargetRef.current)
@@ -345,7 +352,6 @@ const Fish: React.FC = () => {
           <sphereGeometry args={[0.5, 16, 16]} />
           <meshStandardMaterial 
             color="#EOB0FF"  // Coral orange
-            
           />
           <primitive object={new THREE.Object3D()} scale={[1.2, 0.85, 1]} />
         </mesh>
@@ -440,18 +446,20 @@ const Fish: React.FC = () => {
       {/* Wander Target Marker */}
       {behavior === 'wander' && (
         <Html
-          position={wanderTargetRef.current}
+          position={[
+            wanderTargetState.x,
+            wanderTargetState.y,
+            wanderTargetState.z
+          ]}
           style={{ pointerEvents: 'none' }}
-          // Force marker to update by using a key based on position
-          key={`wander-${wanderTargetRef.current.x.toFixed(3)}-${wanderTargetRef.current.z.toFixed(3)}`}
+          key={`${wanderTargetState.x.toFixed(2)}-${wanderTargetState.y.toFixed(2)}-${wanderTargetState.z.toFixed(2)}`}
         >
           <div style={{
             color: '#4169E1',
             fontSize: '16px',
             fontWeight: 'bold',
             opacity: 0.8,
-            transform: 'translate(-50%, -50%)',
-            pointerEvents: 'none'
+            transform: 'translate(-50%, -50%)'
           }}>×</div>
         </Html>
       )}
