@@ -103,7 +103,7 @@ const Fish: React.FC = () => {
 
     const time = state.clock.elapsedTime
     let currentTarget = new THREE.Vector3()
-    const spacing = 0.5  // Constant spacing between segments
+    const spacing = 0.5  // Base spacing (for the largest bone)
 
     // Motion parameters
     const swayFreq = 1.0
@@ -270,35 +270,35 @@ const Fish: React.FC = () => {
       arrowRef.current.setDirection(headDir)
     }
 
-    // Update tail segments for all behaviors
+    // Tail segments update with dynamic spacing to account for tapering:
     let prevPos = headRef.current.position.clone()
     for (let i = 0; i < numSegments; i++) {
-      // Base position with spacing
+      // Compute a taper factor for this segment (mirrors the computation in the mesh render)
+      const segmentProgress = i / numSegments
+      const taperFactor = Math.pow(1 - segmentProgress, 1.2)
+
+      // Dynamic spacing based on the taper factor:
+      const dynamicSpacing = spacing * taperFactor
+
+      // Compute the base target position for this segment relative to the previous one
       const basePos = new THREE.Vector3()
         .copy(prevPos)
-        .addScaledVector(headDir, -spacing)
+        .addScaledVector(headDir, -dynamicSpacing)
 
       if (behavior === 'rest') {
-        // Add downward droop in rest mode
+        // Add downward droop and additional sway/bob as before
         const droopAmount = 0.15 * (i / numSegments) ** 2
         basePos.y -= droopAmount
-
-        // Add attenuated motion
         const swayPhase = i * 0.2
         const bobPhase = i * 0.15
         const attenuation = 1 - i / (numSegments * 1.5)
-        
         const sway = Math.sin(time * swayFreq + swayPhase) * (swayAmplitude * attenuation)
         const bob = Math.sin(time * bobFreq + bobPhase) * (bobAmplitude * attenuation)
-
-        // Compute perpendicular vector for sway
         const perpSway = new THREE.Vector3(-headDir.z, 0, headDir.x)
-        
-        // Apply motions
         basePos.add(perpSway.multiplyScalar(sway))
         basePos.y += bob
       } else {
-        // In follow/approach/wander modes, add wave motion based on speed
+        // Other behaviors use wave motion based on speed
         const speedFactor = THREE.MathUtils.clamp(velocityRef.current.length() * 10, 0.2, 1)
         const baseAmplitude = 0.2 * (1 - i / numSegments)
         const waveAmplitude = baseAmplitude * speedFactor
@@ -307,22 +307,22 @@ const Fish: React.FC = () => {
         basePos.add(perp.multiplyScalar(waveOffset))
       }
 
-      // Smooth transition to new position
+      // Smooth transition for this segment to the target position
       tailPositions[i].lerp(basePos, 0.1)
 
-      // Correction: Ensure the segment stays at the fixed spacing from prevPos
-      const currentDistance = tailPositions[i].distanceTo(prevPos);
-      if (currentDistance > spacing * 1.05) { // allow small tolerance
-        tailPositions[i].sub(prevPos).setLength(spacing);
-        tailPositions[i].add(prevPos);
+      // Correction: Ensure the segment stays at the dynamic spacing distance from prevPos
+      const currentDistance = tailPositions[i].distanceTo(prevPos)
+      if (currentDistance > dynamicSpacing * 1.05) { // allow a small tolerance
+        tailPositions[i].sub(prevPos).setLength(dynamicSpacing)
+        tailPositions[i].add(prevPos)
       }
 
-      // Update mesh position
+      // Update the mesh position if the ref exists
       if (tailRefs.current[i]) {
         tailRefs.current[i].position.copy(tailPositions[i])
       }
 
-      // Update previous position for next segment
+      // Use this segment's position as the new base for the next segment
       prevPos = tailPositions[i].clone()
     }
   })
