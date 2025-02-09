@@ -6,7 +6,7 @@ import Fish from './components/Fish'
 
 const App = () => {
   return (
-    <div className="w-screen h-screen bg-black">
+    <div className="w-screen h-screen bg-black" style={{ backgroundColor: '#000000' }}>
       <Suspense fallback={<div className="text-white">Loading...</div>}>
         <Canvas style={{ width: '100%', height: '100vh' }}>
           {/* Use an orthographic camera positioned overhead, looking down */}

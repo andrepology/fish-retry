@@ -221,6 +221,13 @@ const Fish: React.FC = () => {
 
     // Update velocity
     velocityRef.current.copy(headRef.current.position).sub(prevHeadPos.current)
+
+    // Limit maximum velocity to ensure the tail segments remain connected
+    const maxVelocity = 0.3; // Adjust as needed
+    if (velocityRef.current.length() > maxVelocity) {
+      velocityRef.current.setLength(maxVelocity);
+    }
+
     prevHeadPos.current.copy(headRef.current.position)
 
     // Compute head direction
@@ -278,7 +285,14 @@ const Fish: React.FC = () => {
 
       // Smooth transition to new position
       tailPositions[i].lerp(basePos, 0.1)
-      
+
+      // Correction: Ensure the segment stays at the fixed spacing from prevPos
+      const currentDistance = tailPositions[i].distanceTo(prevPos);
+      if (currentDistance > spacing * 1.05) { // allow small tolerance
+        tailPositions[i].sub(prevPos).setLength(spacing);
+        tailPositions[i].add(prevPos);
+      }
+
       // Update mesh position
       if (tailRefs.current[i]) {
         tailRefs.current[i].position.copy(tailPositions[i])
