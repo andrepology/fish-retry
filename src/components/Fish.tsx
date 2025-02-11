@@ -3,6 +3,7 @@ import React, { useRef, useMemo, useState, useEffect } from 'react'
 import { useFrame, RootState, useThree } from '@react-three/fiber'
 import { Html } from '@react-three/drei'
 import * as THREE from 'three'
+import { useControls, Leva } from 'leva'
 
 type Behavior = 'rest' | 'follow' | 'approach' | 'wander'
 
@@ -29,23 +30,65 @@ const Fish: React.FC = () => {
   const [restDirection, setRestDirection] = useState(new THREE.Vector3(0, 0, 1))
   const [approachTarget, setApproachTarget] = useState(new THREE.Vector3(0, 0, 0))
 
-  // Remove individual refs for these values
+  // Add GUI controls
+  const {
+    // Wander parameters
+    maxSpeed: guiMaxSpeed,
+    maxSteerForce: guiMaxSteerForce,
+    slowingRadius,
+    visionDistance,
+    forwardDistance,
+    radius,
+    updateInterval,
+    arrivalThreshold,
+    boundaryMin,
+    boundaryMax,
+    boundaryBuffer,
+    
+    // Tail wave parameters
+    swayFreq,
+    bobFreq,
+    swayAmplitude,
+    bobAmplitude,
+    waveSpeed,
+    waveAmplitudeBase,
+  } = useControls({
+    // Wander controls
+    maxSpeed: { value: 0.02, min: 0.01, max: 0.1, step: 0.01 },
+    maxSteerForce: { value: 0.001, min: 0.0001, max: 0.01, step: 0.0001 },
+    slowingRadius: { value: 2.0, min: 0.5, max: 5, step: 0.1 },
+    visionDistance: { value: 5, min: 1, max: 10, step: 0.5 },
+    forwardDistance: { value: 2.5, min: 1, max: 5, step: 0.1 },
+    radius: { value: 1, min: 0.1, max: 3, step: 0.1 },
+    updateInterval: { value: 0.8, min: 0.1, max: 2, step: 0.1 },
+    arrivalThreshold: { value: 0.3, min: 0.1, max: 1, step: 0.1 },
+    boundaryMin: { value: -20, min: -50, max: 0, step: 1 },
+    boundaryMax: { value: 20, min: 0, max: 50, step: 1 },
+    boundaryBuffer: { value: 3, min: 1, max: 10, step: 0.5 },
+    
+    // Tail wave controls
+    swayFreq: { value: 1.0, min: 0.1, max: 5, step: 0.1 },
+    bobFreq: { value: 1.2, min: 0.1, max: 5, step: 0.1 },
+    swayAmplitude: { value: 0.1, min: 0, max: 0.5, step: 0.01 },
+    bobAmplitude: { value: 0.3, min: 0, max: 1, step: 0.01 },
+    waveSpeed: { value: 3, min: 0.1, max: 10, step: 0.1 },
+    waveAmplitudeBase: { value: 0.2, min: 0, max: 1, step: 0.01 },
+  }, {
+    collapsed: true,
+  })
+
+  // Update wanderParams with GUI values
   const wanderParams = useRef({
-    // Movement parameters
-    maxSpeed: 0.03,
-    maxSteerForce: 0.001,
-    slowingRadius: 2.0,
-    
-    // Target selection parameters
-    visionDistance: 5,
-    forwardDistance: 2.5,
-    radius: 1,
-    updateInterval: 0.8,
-    arrivalThreshold: 0.3,
-    
-    // Boundary parameters
-    bounds: { min: -20, max: 20 },
-    boundaryBuffer: 3,
+    maxSpeed: guiMaxSpeed,
+    maxSteerForce: guiMaxSteerForce,
+    slowingRadius,
+    visionDistance,
+    forwardDistance,
+    radius,
+    updateInterval,
+    arrivalThreshold,
+    bounds: { min: boundaryMin, max: boundaryMax },
+    boundaryBuffer,
   })
 
   useEffect(() => {
@@ -126,12 +169,6 @@ const Fish: React.FC = () => {
     const time = state.clock.elapsedTime
     let currentTarget = new THREE.Vector3()
     const spacing = 0.5  // Base spacing (for the largest bone)
-
-    // Motion parameters
-    const swayFreq = 1.0
-    const bobFreq = 1.2
-    const swayAmplitude = 0.1
-    const bobAmplitude = 0.3
 
     if (behavior === 'rest') {
       // Calculate head motion first
@@ -337,13 +374,13 @@ const Fish: React.FC = () => {
         const bob = Math.sin(time * bobFreq + bobPhase) * (bobAmplitude * attenuation)
         const perpSway = new THREE.Vector3(-headDir.z, 0, headDir.x)
         basePos.add(perpSway.multiplyScalar(sway))
-        basePos.y += bob
+        // basePos.y += bob
       } else {
         // Other behaviors use wave motion based on speed
         const speedFactor = THREE.MathUtils.clamp(velocityRef.current.length() * 10, 0.2, 1)
-        const baseAmplitude = 0.2 * (1 - i / numSegments)
+        const baseAmplitude = waveAmplitudeBase * (1 - i / numSegments)
         const waveAmplitude = baseAmplitude * speedFactor
-        const waveOffset = Math.sin(time * 3 + i * 0.5) * waveAmplitude
+        const waveOffset = Math.sin(time * waveSpeed + i * 0.5) * waveAmplitude
         const perp = new THREE.Vector3(-headDir.z, 0, headDir.x)
         basePos.add(perp.multiplyScalar(waveOffset))
       }
@@ -436,6 +473,7 @@ const Fish: React.FC = () => {
           )
         })}
       </group>
+
 
       {/* Debug Overlay */}
       <Html fullscreen style={{ pointerEvents: 'none' }}>

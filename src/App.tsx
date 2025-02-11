@@ -3,11 +3,13 @@ import { Canvas } from '@react-three/fiber'
 import { OrthographicCamera } from '@react-three/drei'
 import * as THREE from 'three'
 import Fish from './components/Fish'
+import { Leva } from 'leva'
 
 const App = () => {
   return (
     <div className="w-screen h-screen bg-black" style={{ backgroundColor: '#000000' }}>
       <Suspense fallback={<div className="text-white">Loading...</div>}>
+        <Leva collapsed={true} />
         <Canvas style={{ width: '100%', height: '100vh' }}>
           {/* Use an orthographic camera positioned overhead, looking down */}
           <OrthographicCamera makeDefault position={[0, 50, 0]} rotation={[-Math.PI / 2, 0, 0]} zoom={50} near={0.1} far={1000} />
