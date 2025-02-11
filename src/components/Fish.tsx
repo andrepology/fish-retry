@@ -17,6 +17,9 @@ const Fish: React.FC = () => {
   const arrowRef = useRef(null)
   const wanderTargetRef = useRef(new THREE.Vector3())
   const lastWanderUpdateRef = useRef(0)
+  const currentVelocity = useRef(new THREE.Vector3())
+  const maxSpeed = useRef(0.03)
+  const maxSteerForce = useRef(0.001)
 
   // New state added for wander target reactive updates:
   const [wanderTargetState, setWanderTargetState] = useState(new THREE.Vector3(0, 0, 0))
@@ -25,6 +28,25 @@ const Fish: React.FC = () => {
   const [restTarget, setRestTarget] = useState(new THREE.Vector3(0, 0, 0))
   const [restDirection, setRestDirection] = useState(new THREE.Vector3(0, 0, 1))
   const [approachTarget, setApproachTarget] = useState(new THREE.Vector3(0, 0, 0))
+
+  // Remove individual refs for these values
+  const wanderParams = useRef({
+    // Movement parameters
+    maxSpeed: 0.03,
+    maxSteerForce: 0.001,
+    slowingRadius: 2.0,
+    
+    // Target selection parameters
+    visionDistance: 5,
+    forwardDistance: 2.5,
+    radius: 1,
+    updateInterval: 0.8,
+    arrivalThreshold: 0.3,
+    
+    // Boundary parameters
+    bounds: { min: -20, max: 20 },
+    boundaryBuffer: 3,
+  })
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -135,30 +157,20 @@ const Fish: React.FC = () => {
       currentTarget.copy(followTargetCursor)
       headRef.current.position.lerp(currentTarget, 0.02)
     } else if (behavior === 'wander') {
-      const wanderParams = {
-        visionDistance: 5,      // How far ahead the fish can "see"
-        forwardDistance: 2.5,   // How far ahead to place the actual target
-        radius: 1,
-        updateInterval: 0.8,
-        arrivalThreshold: 0.3,
-        bounds: { min: -20, max: 20 },
-        lerpSpeed: 0.01,
-        boundaryBuffer: 3       // Start avoiding when this far from bounds
-      }
+      // Use wanderParams.current instead of separate object
+      const params = wanderParams.current
 
-      // Ensure fish stays within bounds
-      const currentPos = headRef.current.position.clone()
-      currentPos.x = THREE.MathUtils.clamp(
-        currentPos.x,
-        wanderParams.bounds.min,
-        wanderParams.bounds.max
+      // Update bounds checks
+      headRef.current.position.x = THREE.MathUtils.clamp(
+        headRef.current.position.x,
+        params.bounds.min,
+        params.bounds.max
       )
-      currentPos.z = THREE.MathUtils.clamp(
-        currentPos.z,
-        wanderParams.bounds.min,
-        wanderParams.bounds.max
+      headRef.current.position.z = THREE.MathUtils.clamp(
+        headRef.current.position.z,
+        params.bounds.min,
+        params.bounds.max
       )
-      headRef.current.position.copy(currentPos)
 
       // Get current forward direction (ensure it's on XZ plane)
       const forward = new THREE.Vector3()
@@ -171,23 +183,23 @@ const Fish: React.FC = () => {
       }
 
       // Check vision point for obstacles
-      const visionPoint = currentPos.clone().add(forward.clone().multiplyScalar(wanderParams.visionDistance))
+      const visionPoint = headRef.current.position.clone().add(forward.clone().multiplyScalar(params.visionDistance))
       const isVisionPointOutOfBounds = 
-        visionPoint.x < wanderParams.bounds.min + wanderParams.boundaryBuffer ||
-        visionPoint.x > wanderParams.bounds.max - wanderParams.boundaryBuffer ||
-        visionPoint.z < wanderParams.bounds.min + wanderParams.boundaryBuffer ||
-        visionPoint.z > wanderParams.bounds.max - wanderParams.boundaryBuffer
+        visionPoint.x < params.bounds.min + params.boundaryBuffer ||
+        visionPoint.x > params.bounds.max - params.boundaryBuffer ||
+        visionPoint.z < params.bounds.min + params.boundaryBuffer ||
+        visionPoint.z > params.bounds.max - params.boundaryBuffer
 
       // Check if current target is out of bounds
       const isTargetOutOfBounds = 
-        wanderTargetRef.current.x < wanderParams.bounds.min ||
-        wanderTargetRef.current.x > wanderParams.bounds.max ||
-        wanderTargetRef.current.z < wanderParams.bounds.min ||
-        wanderTargetRef.current.z > wanderParams.bounds.max
+        wanderTargetRef.current.x < params.bounds.min ||
+        wanderTargetRef.current.x > params.bounds.max ||
+        wanderTargetRef.current.z < params.bounds.min ||
+        wanderTargetRef.current.z > params.bounds.max
 
       const shouldUpdateTarget = 
-        time - lastWanderUpdateRef.current > wanderParams.updateInterval || 
-        headRef.current.position.distanceTo(wanderTargetRef.current) < wanderParams.arrivalThreshold ||
+        time - lastWanderUpdateRef.current > params.updateInterval || 
+        headRef.current.position.distanceTo(wanderTargetRef.current) < params.arrivalThreshold ||
         isTargetOutOfBounds ||
         isVisionPointOutOfBounds
 
@@ -195,18 +207,18 @@ const Fish: React.FC = () => {
         let targetBase
         if (isVisionPointOutOfBounds) {
           // Calculate direction to center when obstacle detected
-          const toCenter = new THREE.Vector3(0, 0, 0).sub(currentPos).normalize()
-          targetBase = currentPos.clone()
-          targetBase.add(toCenter.multiplyScalar(wanderParams.forwardDistance))
+          const toCenter = new THREE.Vector3(0, 0, 0).sub(headRef.current.position).normalize()
+          targetBase = headRef.current.position.clone()
+          targetBase.add(toCenter.multiplyScalar(params.forwardDistance))
         } else {
           // Normal forward-based targeting
-          targetBase = currentPos.clone()
-          targetBase.add(forward.multiplyScalar(wanderParams.forwardDistance))
+          targetBase = headRef.current.position.clone()
+          targetBase.add(forward.multiplyScalar(params.forwardDistance))
         }
 
         // Calculate random offset within radius (on XZ plane)
         const angle = Math.random() * Math.PI * 2
-        const offsetLength = Math.random() * wanderParams.radius
+        const offsetLength = Math.random() * params.radius
         const offset = new THREE.Vector3(
           Math.cos(angle),
           0,
@@ -217,13 +229,13 @@ const Fish: React.FC = () => {
         const newTarget = targetBase.clone().add(offset)
         newTarget.x = THREE.MathUtils.clamp(
           newTarget.x,
-          wanderParams.bounds.min,
-          wanderParams.bounds.max
+          params.bounds.min,
+          params.bounds.max
         )
         newTarget.z = THREE.MathUtils.clamp(
           newTarget.z,
-          wanderParams.bounds.min,
-          wanderParams.bounds.max
+          params.bounds.min,
+          params.bounds.max
         )
         newTarget.y = 0
 
@@ -234,9 +246,38 @@ const Fish: React.FC = () => {
         setWanderTargetState(newTarget.clone())
       }
 
-      currentTarget.copy(wanderTargetRef.current)
-      currentTarget.y = 0
-      headRef.current.position.lerp(currentTarget, wanderParams.lerpSpeed)
+      // Update steering behavior to use params
+      const desired = new THREE.Vector3()
+        .subVectors(wanderTargetRef.current, headRef.current.position)
+      const distance = desired.length()
+      
+      desired.normalize()
+      
+      if (distance < params.slowingRadius) {
+        desired.multiplyScalar(params.maxSpeed * (distance / params.slowingRadius))
+      } else {
+        desired.multiplyScalar(params.maxSpeed)
+      }
+      
+      const steer = desired.sub(currentVelocity.current)
+      steer.clampLength(0, params.maxSteerForce)
+      
+      currentVelocity.current.add(steer)
+      currentVelocity.current.clampLength(0, params.maxSpeed)
+      
+      headRef.current.position.add(currentVelocity.current)
+
+      // Final bounds check
+      headRef.current.position.x = THREE.MathUtils.clamp(
+        headRef.current.position.x,
+        params.bounds.min,
+        params.bounds.max
+      )
+      headRef.current.position.z = THREE.MathUtils.clamp(
+        headRef.current.position.z,
+        params.bounds.min,
+        params.bounds.max
+      )
     } else if (behavior === 'approach') {
       currentTarget.copy(approachTarget)
       currentTarget.y = 0
