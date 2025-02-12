@@ -4,7 +4,8 @@ import { useFrame, RootState, useThree } from '@react-three/fiber'
 import { Html } from '@react-three/drei'
 import * as THREE from 'three'
 import { useControls, Leva } from 'leva'
-import { EffectComposer, Bloom } from '@react-three/postprocessing'
+import { EffectComposer, Bloom, Pixelation } from '@react-three/postprocessing'
+
 
 type Behavior = 'rest' | 'follow' | 'approach' | 'wander'
 
@@ -395,14 +396,21 @@ const Fish: React.FC = () => {
     }
   })
 
+ 
+
   return (
     <>
-      <EffectComposer>
+      <EffectComposer enabled={true}>
         <Bloom 
-          intensity={50.0} // Adjust bloom intensity
-          luminanceThreshold={0.5} // Adjust what brightness level starts to glow
-          luminanceSmoothing={0.5} // Smooth out the effect
-          mipmapBlur={true} // Enable mipmap blur for better quality
+          intensity={50.0}
+          luminanceThreshold={0.5}
+          luminanceSmoothing={0.5}
+          mipmapBlur={true}
+          kernelSize={2}
+          resolutionScale={0.5}
+        />
+        <Pixelation 
+          granularity={5}
         />
       </EffectComposer>
 

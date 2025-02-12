@@ -7,7 +7,7 @@ import { Leva } from 'leva'
 
 const App = () => {
   return (
-    <div className="w-screen h-screen">
+    <div className="w-screen h-screenk">
       <Suspense fallback={<div className="text-white">Loading...</div>}>
         <Leva collapsed={true} />
         <Canvas style={{ width: '100%', height: '100vh' }} shadows>
@@ -15,7 +15,7 @@ const App = () => {
           <OrthographicCamera makeDefault position={[0, 50, 0]} rotation={[-Math.PI / 2, 0, 0]} zoom={50} near={0.1} far={1000} />
           
           {/* Reduce ambient light to make shadows more visible */}
-          <ambientLight intensity={0.2} />
+          <ambientLight intensity={0.15} />
           
           {/* Enhance directional light for stronger shadows */}
           <directionalLight
