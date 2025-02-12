@@ -8,7 +8,7 @@ import { FishBehavior, FishState } from '../steering/FishBehavior'
 
 const Fish: React.FC = () => {
   // --- Basic configuration --
-  const [tailCount, setTailCount] = useState(6)
+  const [tailCount, setTailCount] = useState(0)
   const { camera } = useThree()
   const headRef = useRef<THREE.Mesh>(null)
   const arrowRef = useRef<THREE.ArrowHelper>(null)
@@ -358,15 +358,15 @@ const Fish: React.FC = () => {
       {/* Ground plane for food-click detection */}
       <mesh
         onPointerDown={(e) => {
-          if (fishBehavior.state === FishState.WANDER) {
-            const pt = e.point.clone()
-            pt.y = 0
-            fishBehavior.setFoodTarget(pt)
-            setFoodTarget(pt)
-            console.log('Food placed, new state:', fishBehavior.state)
-            fishBehavior.state = FishState.APPROACH
-            setCurrentBehavior(FishState.APPROACH)
-          }
+          const pt = e.point.clone()
+          pt.y = 0
+          // Always attempt to set a food target.
+          fishBehavior.setFoodTarget(pt)
+          // Optionally update React state for the food marker.
+          setFoodTarget(pt)
+          console.log('Food placed, new state:', fishBehavior.state)
+          // No need to force a state change here—the FishBehavior logic handles it.
+          setCurrentBehavior(fishBehavior.state)
         }}
         position={[0, -1, 0]}
         rotation={[-Math.PI / 2, 0, 0]}
@@ -421,12 +421,13 @@ const Fish: React.FC = () => {
       </group>
 
       {/* Food Marker */}
-      {foodTarget && (fishBehavior.state === FishState.APPROACH || fishBehavior.state === FishState.EAT) && (
+      { [fishBehavior.target, ...fishBehavior.targetQueue].filter(Boolean).map((ft, idx) => (
         <mesh
+          key={idx}
           position={[
-            foodTarget.x,
-            foodTarget.y + Math.sin(timeRef.current * 2) * 0.1,
-            foodTarget.z,
+            ft!.x,
+            ft!.y + Math.sin(timeRef.current * 2) * 0.1,
+            ft!.z,
           ]}
           castShadow
         >
@@ -440,7 +441,7 @@ const Fish: React.FC = () => {
             opacity={fishBehavior.state === FishState.EAT ? 0.5 : 1}
           />
         </mesh>
-      )}
+      ))}
 
       {/* Debug Overlay */}
       <Html fullscreen style={{ pointerEvents: 'none' }}>

@@ -18,6 +18,7 @@ export interface FishBehaviorOptions {
 export class FishBehavior {
   public state: FishState;
   public target: THREE.Vector3 | null;
+  public targetQueue: THREE.Vector3[];
   private options: FishBehaviorOptions;
   private timer: number; // used to time EAT and REST durations
   public restPosition: THREE.Vector3 | null; // Add this to store rest position
@@ -34,6 +35,7 @@ export class FishBehavior {
     }
     this.state = FishState.WANDER;
     this.target = null;
+    this.targetQueue = [];
     this.restPosition = null;
     this.restDirection = null;
     this.timer = 0;
@@ -41,12 +43,17 @@ export class FishBehavior {
 
   /**
    * External method to set the food target.
-   * In our design the Food mesh is placed on click and then its position is passed here.
+   * Instead of overriding the current target if one exists, we queue additional food points.
    */
   public setFoodTarget(target: THREE.Vector3) {
-    this.target = target.clone();
-    this.state = FishState.APPROACH;
-    this.timer = 0;
+    if (!this.target) {
+      this.target = target.clone();
+      this.state = FishState.APPROACH;
+      this.timer = 0;
+    } else {
+      // If already pursuing a target, add it to the queue.
+      this.targetQueue.push(target.clone());
+    }
   }
 
   /**
@@ -54,7 +61,9 @@ export class FishBehavior {
    * The update logic is:
    * - In APPROACH, if the fish is near the target, switch to EAT.
    * - In EAT, count elapsed time (allowing an eating animation to play), then call onEat and switch to REST.
-   * - In REST, wait a little (simulate a pause), then return to WANDER.
+   * - In REST, wait a little (simulate a pause), then:
+   *   > If there is another food target queued, switch to APPROACH with that target.
+   *   > Otherwise, return to WANDER.
    */
   public update(headPosition: THREE.Vector3, velocity: THREE.Vector3, deltaTime: number) {
     switch (this.state) {
@@ -90,23 +99,39 @@ export class FishBehavior {
       case FishState.REST: {
         this.timer += deltaTime;
         if (this.timer >= (this.options.restDuration || 2)) {
-          this.state = FishState.WANDER;
-          this.target = null;
-          this.restPosition = null;
-          this.restDirection = null;
-          this.timer = 0;
-          console.log('Transitioning back to WANDER state');
+          // When finishing REST, check if another food target is waiting.
+          if (this.targetQueue.length > 0) {
+            this.target = this.targetQueue.shift()!;
+            this.state = FishState.APPROACH;
+            this.timer = 0;
+            console.log('Switching to next food target from queue');
+          } else {
+            this.state = FishState.WANDER;
+            this.target = null;
+            this.restPosition = null;
+            this.restDirection = null;
+            this.timer = 0;
+            console.log('Transitioning back to WANDER state');
+          }
         }
         break;
       }
-      case FishState.WANDER:
-        // No internal update needed in wander state.
+      case FishState.WANDER: {
+        // Additionally, if in WANDER and a target has been queued, begin approaching it.
+        if (!this.target && this.targetQueue.length > 0) {
+          this.target = this.targetQueue.shift()!;
+          this.state = FishState.APPROACH;
+          this.timer = 0;
+          console.log("Switching to next food target from queue (WANDER check)");
+        }
         break;
+      }
     }
   }
 
   public resetTarget() {
     this.target = null;
+    this.targetQueue = [];
     this.restPosition = null;
     this.restDirection = null;
     this.state = FishState.WANDER;
