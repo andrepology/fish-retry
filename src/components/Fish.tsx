@@ -4,12 +4,13 @@ import { useFrame, RootState, useThree } from '@react-three/fiber'
 import { Html } from '@react-three/drei'
 import * as THREE from 'three'
 import { useControls, Leva } from 'leva'
+import { EffectComposer, Bloom } from '@react-three/postprocessing'
 
 type Behavior = 'rest' | 'follow' | 'approach' | 'wander'
 
 const Fish: React.FC = () => {
   // Increase number of tail segments for more fish-like shape
-  const numSegments = 16
+  const numSegments = 8
 
   const { mouse, camera } = useThree()
   const headRef = useRef<THREE.Mesh>(null)
@@ -47,9 +48,7 @@ const Fish: React.FC = () => {
     
     // Tail wave parameters
     swayFreq,
-    bobFreq,
     swayAmplitude,
-    bobAmplitude,
     waveSpeed,
     waveAmplitudeBase,
   } = useControls({
@@ -68,9 +67,7 @@ const Fish: React.FC = () => {
     
     // Tail wave controls
     swayFreq: { value: 1.0, min: 0.1, max: 5, step: 0.1 },
-    bobFreq: { value: 1.2, min: 0.1, max: 5, step: 0.1 },
     swayAmplitude: { value: 0.1, min: 0, max: 0.5, step: 0.01 },
-    bobAmplitude: { value: 0.3, min: 0, max: 1, step: 0.01 },
     waveSpeed: { value: 3, min: 0.1, max: 10, step: 0.1 },
     waveAmplitudeBase: { value: 0.2, min: 0, max: 1, step: 0.01 },
   }, {
@@ -134,7 +131,7 @@ const Fish: React.FC = () => {
   tailRefs.current = new Array(numSegments).fill(null)
 
   useEffect(() => {
-    if (headRef.current) {
+    if (!headRef.current) {
       // Cleanup any existing arrow first
       if (arrowRef.current && headRef.current.parent) {
         headRef.current.parent.remove(arrowRef.current)
@@ -173,13 +170,11 @@ const Fish: React.FC = () => {
     if (behavior === 'rest') {
       // Calculate head motion first
       const headSway = Math.sin(time * swayFreq) * swayAmplitude
-      const headBob = Math.sin(time * bobFreq) * bobAmplitude
 
       // Apply to head position
       const perpSway = new THREE.Vector3(-restDirection.z, 0, restDirection.x)
       currentTarget.copy(restTarget)
         .add(perpSway.multiplyScalar(headSway))
-        .add(new THREE.Vector3(0, headBob, 0))
       
       // Update head position with the new motion
       headRef.current.position.lerp(currentTarget, 0.1)
@@ -364,17 +359,12 @@ const Fish: React.FC = () => {
         .addScaledVector(headDir, -dynamicSpacing)
 
       if (behavior === 'rest') {
-        // Add downward droop and additional sway/bob as before
-        const droopAmount = 0.15 * (i / numSegments) ** 2
-        basePos.y -= droopAmount
+        // Remove downward droop and bob, keep only sway
         const swayPhase = i * 0.2
-        const bobPhase = i * 0.15
         const attenuation = 1 - i / (numSegments * 1.5)
         const sway = Math.sin(time * swayFreq + swayPhase) * (swayAmplitude * attenuation)
-        const bob = Math.sin(time * bobFreq + bobPhase) * (bobAmplitude * attenuation)
         const perpSway = new THREE.Vector3(-headDir.z, 0, headDir.x)
         basePos.add(perpSway.multiplyScalar(sway))
-        // basePos.y += bob
       } else {
         // Other behaviors use wave motion based on speed
         const speedFactor = THREE.MathUtils.clamp(velocityRef.current.length() * 10, 0.2, 1)
@@ -407,6 +397,15 @@ const Fish: React.FC = () => {
 
   return (
     <>
+      <EffectComposer>
+        <Bloom 
+          intensity={50.0} // Adjust bloom intensity
+          luminanceThreshold={0.5} // Adjust what brightness level starts to glow
+          luminanceSmoothing={0.5} // Smooth out the effect
+          mipmapBlur={true} // Enable mipmap blur for better quality
+        />
+      </EffectComposer>
+
       <mesh
         onPointerDown={(e) => {
           if (behavior === 'approach') {
@@ -425,11 +424,13 @@ const Fish: React.FC = () => {
 
       <group>
         {/* Fish Head */}
-        <mesh ref={headRef}>
-          {/* Use ellipsoid shape for head by scaling a sphere */}
-          <sphereGeometry args={[0.5, 16, 16]} />
+        <mesh ref={headRef} castShadow>
+          <sphereGeometry args={[0.08, 16, 16]} />
           <meshStandardMaterial 
-            color="#EOB0FF"  // Coral orange
+            color="#E0B0FF"
+            emissive="#4B0082"
+            emissiveIntensity={0.5}
+            toneMapped={false}
           />
           <primitive object={new THREE.Object3D()} scale={[1.2, 0.85, 1]} />
         </mesh>
@@ -439,10 +440,10 @@ const Fish: React.FC = () => {
           // More dramatic tapering for a fish-like silhouette
           const segmentProgress = idx / numSegments
           // Exponential falloff for more natural tapering
-          const taperFactor = Math.pow(1 - segmentProgress, 1.2)
+          const taperFactor = Math.pow(1 - segmentProgress, 0.5)
           
           // Start wider at the body and taper more aggressively toward tail
-          const baseRadius = 0.5
+          const baseRadius = 0.15
           const radius = baseRadius * taperFactor * (1 - (idx + 1) / (numSegments + 2))
           
           // Vertical compression increases toward tail
@@ -453,7 +454,7 @@ const Fish: React.FC = () => {
           color.setHSL(
             0.77,  // Orange-red hue
             1.0,   // Saturation
-            0.85 - (segmentProgress * 0.2)  // Lightness decreases toward tail
+            0.9 - (segmentProgress * 0.3)  // Lightness decreases toward tail
           )
 
           return (
@@ -461,10 +462,14 @@ const Fish: React.FC = () => {
               key={idx}
               ref={(el) => (tailRefs.current[idx] = el)}
               position={pos}
+              castShadow
             >
               <sphereGeometry args={[radius, 12, 12]} />
               <meshStandardMaterial 
                 color={color}
+                emissive={color}  // Match base color for glow
+                emissiveIntensity={0.3}  // Less intense than head
+                toneMapped={false}
                 roughness={0.7}
                 metalness={0.1}
               />
@@ -534,6 +539,7 @@ const Fish: React.FC = () => {
           key={`${wanderTargetState.x.toFixed(2)}-${wanderTargetState.y.toFixed(2)}-${wanderTargetState.z.toFixed(2)}`}
         >
           <div style={{
+            display: 'none',
             color: '#4169E1',
             fontSize: '16px',
             fontWeight: 'bold',
