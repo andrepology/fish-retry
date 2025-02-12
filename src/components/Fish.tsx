@@ -5,7 +5,7 @@ import { Html } from '@react-three/drei'
 import * as THREE from 'three'
 import { useControls, Leva } from 'leva'
 import { EffectComposer, Bloom, Pixelation } from '@react-three/postprocessing'
-
+import { FishBehavior, FishState } from '../steering/FishBehavior'
 
 type Behavior = 'rest' | 'follow' | 'approach' | 'wander'
 
@@ -89,19 +89,40 @@ const Fish: React.FC = () => {
     boundaryBuffer,
   })
 
+  // Create the State Machine Instance
+  const fishBehavior = useMemo(() => new FishBehavior({
+    approachThreshold: arrivalThreshold,
+    restDuration: 2,
+    eatDuration: 1,
+    bounds: { min: boundaryMin, max: boundaryMax },
+    onEat: () => {
+      // In a complete implementation, trigger an eating animation and then remove the food mesh.
+      console.log('Food eaten – triggering onEat callback')
+      setFoodTarget(null)
+    },
+  }), [arrivalThreshold, boundaryMin, boundaryMax])
+
+  // Store time in a ref so we can use it throughout the component
+  const timeRef = useRef(0)
+
+  // Keep React state in sync with fishBehavior:
+  const [currentBehavior, setCurrentBehavior] = useState(fishBehavior.state)
+  const [foodTarget, setFoodTarget] = useState<THREE.Vector3 | null>(null)
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key.toLowerCase() === 'r') {
-        setBehavior('rest')
-        if (headRef.current) {
-          setRestTarget(headRef.current.position.clone())
-          // Store current direction or default to forward
-          if (velocityRef.current.length() > 0.001) {
-            setRestDirection(velocityRef.current.clone().normalize())
-          } else {
-            setRestDirection(new THREE.Vector3(0, 0, 1))
-          }
+        // Manually force REST state.
+        fishBehavior.resetTarget() // go to wander; then set rest manually:
+        setRestTarget(headRef.current.position.clone())
+        if (velocityRef.current.length() > 0.001) {
+          setRestDirection(velocityRef.current.clone().normalize())
+        } else {
+          setRestDirection(new THREE.Vector3(0, 0, 1))
         }
+        // For our purposes you might want to force the state machine into REST.
+        fishBehavior.state = FishState.REST
+        setCurrentBehavior(FishState.REST)
       } else if (event.key.toLowerCase() === 'f') {
         setBehavior('follow')
       } else if (event.key.toLowerCase() === 'a') {
@@ -118,7 +139,7 @@ const Fish: React.FC = () => {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [])
+  }, [fishBehavior])
 
   const tailPositions = useMemo(() => {
     const arr: THREE.Vector3[] = []
@@ -162,34 +183,42 @@ const Fish: React.FC = () => {
   }, [])
 
   useFrame((state: RootState, delta: number) => {
+    // Update our time reference
+    timeRef.current = state.clock.elapsedTime
+    
     if (!headRef.current) return
 
-    const time = state.clock.elapsedTime
     let currentTarget = new THREE.Vector3()
     const spacing = 0.5  // Base spacing (for the largest bone)
 
-    if (behavior === 'rest') {
-      // Calculate head motion first
-      const headSway = Math.sin(time * swayFreq) * swayAmplitude
+    // Update the state machine based on the head's position.
+    fishBehavior.update(headRef.current.position, velocityRef.current, delta)
 
-      // Apply to head position
-      const perpSway = new THREE.Vector3(-restDirection.z, 0, restDirection.x)
-      currentTarget.copy(restTarget)
-        .add(perpSway.multiplyScalar(headSway))
-      
-      // Update head position with the new motion
-      headRef.current.position.lerp(currentTarget, 0.1)
-    } else if (behavior === 'follow') {
-      // Compute target from mouse pointer on XZ plane
-      const raycaster = new THREE.Raycaster()
-      raycaster.setFromCamera(mouse, camera)
-      const followTargetCursor = new THREE.Vector3()
-      const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
-      raycaster.ray.intersectPlane(plane, followTargetCursor)
-      followTargetCursor.y = 0
-      currentTarget.copy(followTargetCursor)
-      headRef.current.position.lerp(currentTarget, 0.02)
-    } else if (behavior === 'wander') {
+    // If the state changed, update our local React state accordingly:
+    if (fishBehavior.state !== currentBehavior) {
+      setCurrentBehavior(fishBehavior.state)
+      // When transitioning back to WANDER, also clear our food target:
+      if (fishBehavior.state === FishState.WANDER) {
+        setFoodTarget(null)
+      }
+    }
+
+    if (fishBehavior.state === FishState.REST) {
+      // Use the stored rest position and direction from the state machine
+      if (fishBehavior.restPosition && fishBehavior.restDirection) {
+        const headSway = Math.sin(timeRef.current * swayFreq) * swayAmplitude;
+        const perpSway = new THREE.Vector3(
+          -fishBehavior.restDirection.z, 
+          0, 
+          fishBehavior.restDirection.x
+        );
+        
+        currentTarget.copy(fishBehavior.restPosition)
+          .add(perpSway.multiplyScalar(headSway));
+        
+        headRef.current.position.lerp(currentTarget, 0.1);
+      }
+    } else if (fishBehavior.state === FishState.WANDER) {
       // Use wanderParams.current instead of separate object
       const params = wanderParams.current
 
@@ -231,7 +260,7 @@ const Fish: React.FC = () => {
         wanderTargetRef.current.z > params.bounds.max
 
       const shouldUpdateTarget = 
-        time - lastWanderUpdateRef.current > params.updateInterval || 
+        timeRef.current - lastWanderUpdateRef.current > params.updateInterval || 
         headRef.current.position.distanceTo(wanderTargetRef.current) < params.arrivalThreshold ||
         isTargetOutOfBounds ||
         isVisionPointOutOfBounds
@@ -273,7 +302,7 @@ const Fish: React.FC = () => {
         newTarget.y = 0
 
         wanderTargetRef.current.copy(newTarget)
-        lastWanderUpdateRef.current = time
+        lastWanderUpdateRef.current = timeRef.current
 
         // Update the state so React triggers a re-render of the marker
         setWanderTargetState(newTarget.clone())
@@ -311,10 +340,71 @@ const Fish: React.FC = () => {
         params.bounds.min,
         params.bounds.max
       )
-    } else if (behavior === 'approach') {
-      currentTarget.copy(approachTarget)
-      currentTarget.y = 0
-      headRef.current.position.lerp(currentTarget, 0.02)
+    } else if (fishBehavior.state === FishState.APPROACH) {
+      if (!fishBehavior.target) return;
+
+      // Store previous position for velocity calculation
+      prevHeadPos.current.copy(headRef.current.position);
+
+      // Use same params as wander for consistent movement
+      const params = wanderParams.current
+
+      // Bounds check (same as wander)
+      headRef.current.position.x = THREE.MathUtils.clamp(
+        headRef.current.position.x,
+        params.bounds.min,
+        params.bounds.max
+      )
+      headRef.current.position.z = THREE.MathUtils.clamp(
+        headRef.current.position.z,
+        params.bounds.min,
+        params.bounds.max
+      )
+
+      // Calculate desired velocity toward target (using arrival behavior)
+      const desired = new THREE.Vector3()
+        .subVectors(fishBehavior.target, headRef.current.position)
+      const distance = desired.length()
+      
+      desired.normalize()
+      
+      // Slow down as we approach target (same as wander)
+      if (distance < params.slowingRadius) {
+        desired.multiplyScalar(params.maxSpeed * (distance / params.slowingRadius))
+      } else {
+        desired.multiplyScalar(params.maxSpeed)
+      }
+      
+      // Add a small wiggle to make movement more natural
+      const wiggleAngle = Math.sin(timeRef.current * 2) * 0.2
+      desired.applyAxisAngle(new THREE.Vector3(0, 1, 0), wiggleAngle)
+      
+      // Apply steering force (same as wander)
+      const steer = desired.sub(currentVelocity.current)
+      steer.clampLength(0, params.maxSteerForce)
+      
+      currentVelocity.current.add(steer)
+      currentVelocity.current.clampLength(0, params.maxSpeed)
+      
+      headRef.current.position.add(currentVelocity.current)
+
+      // Final bounds check
+      headRef.current.position.x = THREE.MathUtils.clamp(
+        headRef.current.position.x,
+        params.bounds.min,
+        params.bounds.max
+      )
+      headRef.current.position.z = THREE.MathUtils.clamp(
+        headRef.current.position.z,
+        params.bounds.min,
+        params.bounds.max
+      )
+
+      // Update velocity reference after position change
+      velocityRef.current.copy(headRef.current.position).sub(prevHeadPos.current);
+    } else if (fishBehavior.state === FishState.EAT) {
+      // During EAT, the fish might pause or move minimally.
+      headRef.current.position.add(currentVelocity.current.multiplyScalar(0.98))
     }
 
     // Update velocity
@@ -330,7 +420,7 @@ const Fish: React.FC = () => {
 
     // Compute head direction
     const headDir = new THREE.Vector3()
-    if (behavior === 'rest') {
+    if (fishBehavior.state === FishState.REST) {
       headDir.copy(restDirection)
     } else if (velocityRef.current.length() > 0.001) {
       headDir.copy(velocityRef.current).normalize()
@@ -359,11 +449,11 @@ const Fish: React.FC = () => {
         .copy(prevPos)
         .addScaledVector(headDir, -dynamicSpacing)
 
-      if (behavior === 'rest') {
+      if (fishBehavior.state === FishState.REST) {
         // Remove downward droop and bob, keep only sway
         const swayPhase = i * 0.2
         const attenuation = 1 - i / (numSegments * 1.5)
-        const sway = Math.sin(time * swayFreq + swayPhase) * (swayAmplitude * attenuation)
+        const sway = Math.sin(timeRef.current * swayFreq + swayPhase) * (swayAmplitude * attenuation)
         const perpSway = new THREE.Vector3(-headDir.z, 0, headDir.x)
         basePos.add(perpSway.multiplyScalar(sway))
       } else {
@@ -371,7 +461,7 @@ const Fish: React.FC = () => {
         const speedFactor = THREE.MathUtils.clamp(velocityRef.current.length() * 10, 0.2, 1)
         const baseAmplitude = waveAmplitudeBase * (1 - i / numSegments)
         const waveAmplitude = baseAmplitude * speedFactor
-        const waveOffset = Math.sin(time * waveSpeed + i * 0.5) * waveAmplitude
+        const waveOffset = Math.sin(timeRef.current * waveSpeed + i * 0.5) * waveAmplitude
         const perp = new THREE.Vector3(-headDir.z, 0, headDir.x)
         basePos.add(perp.multiplyScalar(waveOffset))
       }
@@ -396,11 +486,9 @@ const Fish: React.FC = () => {
     }
   })
 
- 
-
   return (
     <>
-      <EffectComposer enabled={true}>
+      <EffectComposer enabled={false}>
         <Bloom 
           intensity={50.0}
           luminanceThreshold={0.5}
@@ -416,13 +504,16 @@ const Fish: React.FC = () => {
 
       <mesh
         onPointerDown={(e) => {
-          if (behavior === 'approach') {
+          if (fishBehavior.state === FishState.WANDER) {  // Only accept food when wandering
             const pt = e.point.clone()
             pt.y = 0
-            setApproachTarget(pt)
+            fishBehavior.setFoodTarget(pt)
+            setFoodTarget(pt)
+            console.log('Food placed, new state:', fishBehavior.state)
+            setCurrentBehavior(FishState.APPROACH)
           }
         }}
-        position={[0, 0, 0]}
+        position={[0, -1, 0]}
         rotation={[-Math.PI / 2, 0, 0]}
         visible={false}
       >
@@ -437,7 +528,7 @@ const Fish: React.FC = () => {
           <meshStandardMaterial 
             color="#E0B0FF"
             emissive="#4B0082"
-            emissiveIntensity={0.5}
+            emissiveIntensity={0.4}
             toneMapped={false}
           />
           <primitive object={new THREE.Object3D()} scale={[1.2, 0.85, 1]} />
@@ -487,6 +578,27 @@ const Fish: React.FC = () => {
         })}
       </group>
 
+      {/* Food Marker - Updated visibility check and time reference */}
+      {foodTarget && (fishBehavior.state === FishState.APPROACH || fishBehavior.state === FishState.EAT) && (
+        <mesh
+          position={[
+            foodTarget.x,
+            foodTarget.y + Math.sin(timeRef.current * 2) * 0.1,
+            foodTarget.z,
+          ]}
+          castShadow
+        >
+          <sphereGeometry args={[0.2, 16, 16]} />
+          <meshStandardMaterial 
+            color="red"
+            emissive="red"
+            emissiveIntensity={0.3}
+            toneMapped={false}
+            transparent
+            opacity={fishBehavior.state === FishState.EAT ? 0.5 : 1}
+          />
+        </mesh>
+      )}
 
       {/* Debug Overlay */}
       <Html fullscreen style={{ pointerEvents: 'none' }}>
@@ -501,42 +613,22 @@ const Fish: React.FC = () => {
             padding: '5px'
           }}
         >
-          Debug - Behavior: {behavior}
-          <br />
-          Target: {(() => {
-            let t = new THREE.Vector3()
-            if (behavior === 'rest') {
-              t.copy(restTarget)
-              t.y += Math.sin(Date.now() * 0.003) * 0.1
-            } else if (behavior === 'follow') {
-              const raycaster = new THREE.Raycaster()
-              raycaster.setFromCamera(mouse, camera)
-              const ct = new THREE.Vector3()
-              const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
-              raycaster.ray.intersectPlane(plane, ct)
-              ct.y = 0
-              t.copy(ct)
-            } else if (behavior === 'approach') {
-              t.copy(approachTarget)
-              t.y = 0
-            } else if (behavior === 'wander') {
-              t.copy(wanderTargetRef.current)
-              t.y = 0
-            }
-            return `${t.x.toFixed(2)}, ${t.y.toFixed(2)}, ${t.z.toFixed(2)}`
-          })()}
+          Current State: {currentBehavior}
+          {foodTarget &&
+            ` | Food Target: (${foodTarget.x.toFixed(2)}, ${foodTarget.z.toFixed(2)})`
+          }
         </div>
       </Html>
 
       {/* Approach Target Marker */}
-      {behavior === 'approach' && (
-        <Html position={approachTarget} style={{ pointerEvents: 'none' }}>
+      {fishBehavior.state === FishState.APPROACH && (
+        <Html position={fishBehavior.target} style={{ pointerEvents: 'none' }}>
           <div style={{ color: 'red', fontSize: '24px', fontWeight: 'bold' }}>X</div>
         </Html>
       )}
 
       {/* Wander Target Marker */}
-      {behavior === 'wander' && (
+      {fishBehavior.state === FishState.WANDER && (
         <Html
           position={[
             wanderTargetState.x,
