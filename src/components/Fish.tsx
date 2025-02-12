@@ -109,6 +109,9 @@ const Fish: React.FC = () => {
   const [currentBehavior, setCurrentBehavior] = useState(fishBehavior.state)
   const [foodTarget, setFoodTarget] = useState<THREE.Vector3 | null>(null)
 
+  // Add this ref at the top of your component (e.g., with the others)
+  const lastHeadDir = useRef(new THREE.Vector3(0, 0, 1));
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key.toLowerCase() === 'r') {
@@ -419,13 +422,28 @@ const Fish: React.FC = () => {
     prevHeadPos.current.copy(headRef.current.position)
 
     // Compute head direction
-    const headDir = new THREE.Vector3()
-    if (fishBehavior.state === FishState.REST) {
-      headDir.copy(restDirection)
-    } else if (velocityRef.current.length() > 0.001) {
-      headDir.copy(velocityRef.current).normalize()
+    const headDir = new THREE.Vector3();
+    if (fishBehavior.state === FishState.REST && fishBehavior.restDirection) {
+      // When resting, use the stored restDirection from the behavior
+      headDir.copy(fishBehavior.restDirection);
+      lastHeadDir.current.copy(fishBehavior.restDirection);
+    } else if (fishBehavior.state === FishState.APPROACH && fishBehavior.target) {
+      // In APPROACH mode, derive a heading from the target position
+      headDir.copy(fishBehavior.target).sub(headRef.current.position);
+      headDir.y = 0; // ensure we work on the XZ plane
+      if (headDir.length() > 0.001) {
+        headDir.normalize();
+        lastHeadDir.current.copy(headDir);
+      } else {
+        headDir.copy(lastHeadDir.current);
+      }
+    } else if (currentVelocity.current.length() > 0.001) {
+      // Otherwise, if there's enough motion, use the current velocity
+      headDir.copy(currentVelocity.current).normalize();
+      lastHeadDir.current.copy(headDir);
     } else {
-      headDir.set(0, 0, 1)
+      // Fallback: use the last known head direction
+      headDir.copy(lastHeadDir.current);
     }
 
     // Update debug arrow
