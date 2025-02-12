@@ -8,7 +8,7 @@ import { FishBehavior, FishState } from '../steering/FishBehavior'
 
 const Fish: React.FC = () => {
   // --- Basic configuration --
-  const numSegments = 6
+  const [tailCount, setTailCount] = useState(6)
   const { camera } = useThree()
   const headRef = useRef<THREE.Mesh>(null)
   const arrowRef = useRef<THREE.ArrowHelper>(null)
@@ -69,12 +69,13 @@ const Fish: React.FC = () => {
   // --- Create FishBehavior instance (state machine) ---
   const fishBehavior = useMemo(() => new FishBehavior({
     approachThreshold: guiConfig.arrivalThreshold,
-    restDuration: 2,
-    eatDuration: 1,
+    restDuration: 0.5,
+    eatDuration: 0.3,
     bounds: { min: guiConfig.boundaryMin, max: guiConfig.boundaryMax },
     onEat: () => {
       console.log('Food eaten – triggering onEat callback')
       setFoodTarget(null)
+      setTailCount((prev) => prev + 1)
     },
   }), [guiConfig.arrivalThreshold, guiConfig.boundaryMin, guiConfig.boundaryMax])
 
@@ -82,14 +83,33 @@ const Fish: React.FC = () => {
   const [foodTarget, setFoodTarget] = useState<THREE.Vector3 | null>(null)
 
   // --- Tail segments positions and refs ---
-  const tailPositions = useMemo(() => {
-    const arr: THREE.Vector3[] = []
-    for (let i = 0; i < numSegments; i++) {
-      arr.push(new THREE.Vector3(0, -(i + 1) * 0.5, 0))
+  const tailPositions = useRef<THREE.Vector3[]>([])
+  const tailRefs = useRef<(THREE.Mesh | null)[]>([])
+  
+
+  useEffect(() => {
+    if (tailPositions.current.length === 0) {
+      const initialPositions: THREE.Vector3[] = []
+      for (let i = 0; i < tailCount; i++) {
+        initialPositions.push(new THREE.Vector3(0, -(i + 1) * 0.5, 0))
+      }
+      tailPositions.current = initialPositions
     }
-    return arr
-  }, [numSegments])
-  const tailRefs = useRef<(THREE.Mesh | null)[]>(new Array(numSegments).fill(null))
+  }, [])
+
+  useEffect(() => {
+    if (tailPositions.current.length < tailCount) {
+      // Use the last segment's position (or a default value if none exist)
+      const lastPos = tailPositions.current.length > 0 
+        ? tailPositions.current[tailPositions.current.length - 1].clone()
+        : new THREE.Vector3(0, -0.5, 0)
+      const numToAdd = tailCount - tailPositions.current.length
+      for (let i = 0; i < numToAdd; i++) {
+        tailPositions.current.push(lastPos.clone())
+      }
+    }
+  }, [tailCount])
+
 
   // --- Set up arrow helper for debugging the head's intended direction ---
   useEffect(() => {
@@ -262,35 +282,35 @@ const Fish: React.FC = () => {
   // --- Helper: Update tail segments to follow the head using the smoothed heading ---
   const updateTailSegments = (headDirection: THREE.Vector3) => {
     let prevPos = headRef.current!.position.clone()
-    for (let i = 0; i < numSegments; i++) {
-      const segProgress = i / numSegments
+    for (let i = 0; i < tailCount; i++) {
+      const segProgress = i / tailCount
       const taperFactor = Math.pow(1 - segProgress, 1.2)
       const spacing = 0.5 * taperFactor
       const basePos = prevPos.clone().addScaledVector(headDirection, -spacing)
       if (fishBehavior.state === FishState.REST) {
         const swayPhase = i * 0.2
-        const attenuation = 1 - i / (numSegments * 1.5)
+        const attenuation = 1 - i / (tailCount * 1.5)
         const sway = Math.sin(timeRef.current * guiConfig.swayFreq + swayPhase) * (guiConfig.swayAmplitude * attenuation)
         const perp = new THREE.Vector3(-headDirection.z, 0, headDirection.x)
         basePos.add(perp.multiplyScalar(sway))
       } else {
         const speedFactor = THREE.MathUtils.clamp(currentVelocity.current.length() * 10, 0.2, 1)
-        const baseAmp = guiConfig.waveAmplitudeBase * (1 - i / numSegments)
+        const baseAmp = guiConfig.waveAmplitudeBase * (1 - i / tailCount)
         const waveAmp = baseAmp * speedFactor
         const waveOffset = Math.sin(timeRef.current * guiConfig.waveSpeed + i * 0.5) * waveAmp
         const perp = new THREE.Vector3(-headDirection.z, 0, headDirection.x)
         basePos.add(perp.multiplyScalar(waveOffset))
       }
-      tailPositions[i].lerp(basePos, 0.1)
-      const curDist = tailPositions[i].distanceTo(prevPos)
+      tailPositions.current[i].lerp(basePos, 0.1)
+      const curDist = tailPositions.current[i].distanceTo(prevPos)
       if (curDist > spacing * 1.05) {
-        tailPositions[i].sub(prevPos).setLength(spacing)
-        tailPositions[i].add(prevPos)
+        tailPositions.current[i].sub(prevPos).setLength(spacing)
+        tailPositions.current[i].add(prevPos)
       }
       if (tailRefs.current[i]) {
-        tailRefs.current[i]!.position.copy(tailPositions[i])
+        tailRefs.current[i]!.position.copy(tailPositions.current[i])
       }
-      prevPos = tailPositions[i].clone()
+      prevPos = tailPositions.current[i].clone()
     }
   }
 
@@ -332,7 +352,7 @@ const Fish: React.FC = () => {
           kernelSize={2}
           resolutionScale={0.5}
         />
-        <Pixelation granularity={5} />
+        <Pixelation granularity={1} />
       </EffectComposer>
 
       {/* Ground plane for food-click detection */}
@@ -370,14 +390,14 @@ const Fish: React.FC = () => {
         </mesh>
 
         {/* Tail Segments */}
-        {tailPositions.map((pos, idx) => {
-          const segProgress = idx / numSegments
-          const taperFactor = Math.pow(1 - segProgress, 0.5)
-          const baseRadius = 0.15
-          const radius = baseRadius * taperFactor * (1 - (idx + 1) / (numSegments + 2))
-          const verticalScale = 0.85 - (segProgress * 0.15)
-          const color = new THREE.Color()
-          color.setHSL(0.77, 1.0, 0.9 - (segProgress * 0.3))
+        {tailPositions.current.map((pos, idx) => {
+          const segProgress = idx / tailCount;
+          const taperFactor = Math.pow(1 - segProgress, 0.5);
+          const baseRadius = 0.15;
+          const radius = baseRadius * taperFactor * (1 - (idx + 1) / (tailCount + 2));
+          const verticalScale = 0.85 - (segProgress * 0.15);
+          const color = new THREE.Color();
+          color.setHSL(0.77, 1.0, 0.9 - (segProgress * 0.3));
           return (
             <mesh
               key={idx}
@@ -396,7 +416,7 @@ const Fish: React.FC = () => {
               />
               <primitive object={new THREE.Object3D()} scale={[1, verticalScale, 1]} />
             </mesh>
-          )
+          );
         })}
       </group>
 
@@ -410,7 +430,7 @@ const Fish: React.FC = () => {
           ]}
           castShadow
         >
-          <sphereGeometry args={[0.2, 16, 16]} />
+          <sphereGeometry args={[0.15, 16, 16]} />
           <meshStandardMaterial 
             color="red"
             emissive="red"
