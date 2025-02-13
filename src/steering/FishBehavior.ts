@@ -36,7 +36,7 @@ export class FishBehavior {
       onEat: undefined,
       ...options,
     }
-    this.state = FishState.WANDER;
+    this.state = FishState.TALK;
     this.target = null;
     this.targetQueue = [];
     this.stationaryPosition = null;

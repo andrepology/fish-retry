@@ -1,6 +1,6 @@
 import React, { useRef, useMemo, useState, useEffect } from 'react'
 import { useFrame, RootState, useThree } from '@react-three/fiber'
-import { Html } from '@react-three/drei'
+import { Html, Line } from '@react-three/drei'
 import * as THREE from 'three'
 import { useControls, Leva } from 'leva'
 import { EffectComposer, Bloom, Pixelation } from '@react-three/postprocessing'
@@ -44,7 +44,7 @@ const Fish: React.FC = () => {
     arrivalThreshold: { value: 0.3, min: 0.1, max: 1, step: 0.1 },
     boundaryMin: { value: -20, min: -50, max: 0, step: 1 },
     boundaryMax: { value: 20, min: 0, max: 50, step: 1 },
-    boundaryBuffer: { value: 3, min: 1, max: 10, step: 0.5 },
+    boundaryBuffer: { value: 30, min: 1, max: 10, step: 0.5 },
     // Tail wave controls
     swayFreq: { value: 1.0, min: 0.1, max: 5, step: 0.1 },
     swayAmplitude: { value: 0.1, min: 0, max: 0.5, step: 0.01 },
@@ -295,7 +295,7 @@ const Fish: React.FC = () => {
   const updateTailSegments = (headDirection: THREE.Vector3) => {
     let prevPos = headRef.current!.position.clone()
     for (let i = 0; i < tailCount; i++) {
-      const segProgress = i / tailCount
+      const segProgress = i / tailCount;
       const taperFactor = Math.pow(1 - segProgress, 1.2)
       const spacing = 0.5 * taperFactor
       const basePos = prevPos.clone().addScaledVector(headDirection, -spacing)
@@ -327,6 +327,8 @@ const Fish: React.FC = () => {
   }
 
   // --- Main animation loop ---
+  const lineEndRef = useRef(new THREE.Vector3(0, 1.5, 0))
+
   useFrame((state: RootState, delta: number) => {
     timeRef.current = state.clock.elapsedTime
     if (!headRef.current) return
@@ -351,10 +353,50 @@ const Fish: React.FC = () => {
 
     // Update tail segments so they follow the head smoothly
     updateTailSegments(intendedDir)
+
+    // Calculate perspective line
+    if (headRef.current) {
+      // Get head position in world space
+      const headPosition = headRef.current.position.clone()
+      
+      // Project head position to screen space
+      const headScreenSpace = headPosition.clone().project(state.camera)
+      
+      // Calculate angle based on screen position
+      const angleToCenter = Math.atan2(headScreenSpace.x, 1) // 1 is the distance to projection plane
+      const maxTilt = Math.PI / 4 // 45 degrees maximum tilt
+      const lineLength = 3.5 // Fixed line length
+      
+      // Create a vector pointing up
+      const lineVector = new THREE.Vector3(
+        Math.sin(angleToCenter) * maxTilt,
+        1,
+        -Math.abs(Math.sin(angleToCenter)) * 0.5
+      ).normalize().multiplyScalar(lineLength)
+
+      // Update end point
+      lineEndRef.current.copy(lineVector)
+    }
+
+    // Force a re-render of the line by updating its points
+    if (headRef.current && lineEndRef.current) {
+      const points = [
+        [0, 0, 0],
+        [lineEndRef.current.x, lineEndRef.current.y, lineEndRef.current.z]
+      ]
+      if (lineRef.current) {
+        lineRef.current.geometry.setFromPoints(
+          points.map(p => new THREE.Vector3(p[0], p[1], p[2]))
+        )
+      }
+    }
   })
 
   // Add ref for talk overlay
   const talkOverlayRef = useRef<THREE.Group>(null)
+
+  // Add this ref for the Line
+  const lineRef = useRef<THREE.Line>(null)
 
   return (
     <>
@@ -402,6 +444,29 @@ const Fish: React.FC = () => {
             toneMapped={false}
           />
           <primitive object={new THREE.Object3D()} scale={[1.2, 0.85, 1]} />
+
+          {(fishBehavior.state === FishState.WANDER || fishBehavior.state === FishState.APPROACH || fishBehavior.state === FishState.TALK) && (
+            <group>
+              {/* Vertical line using Line */}
+              
+
+              {/* Text bubble */}
+              <Html
+                position={[2, 4.5, -0.5]}
+                transform
+                occlude={[headRef]}
+                distanceFactor={12}
+                sprite
+              >
+                <div className="bg-black/80 text-white px-2 py-1 rounded-lg border border-white/20 
+                            text-sm whitespace-nowrap select-none">
+                  Hi, I'm Innio!
+                </div>
+              </Html>
+            </group>
+          )}
+
+          
         </mesh>
 
         {/* Tail Segments */}
@@ -490,43 +555,6 @@ const Fish: React.FC = () => {
             transform: 'translate(-50%, -50%)'
           }}>×</div>
         </Html>
-      )}
-
-      {/* Talk Overlay */}
-      {fishBehavior.state === FishState.TALK && (
-        <group ref={talkOverlayRef}>
-          {/* Vertical line */}
-          <line>
-            <bufferGeometry>
-              <bufferAttribute
-                attach="attributes-position"
-                count={2}
-                itemSize={3}
-                array={new Float32Array([0, 0, 0, 0, 1, 0])}
-              />
-            </bufferGeometry>
-            <lineBasicMaterial color="white" />
-          </line>
-          
-          {/* Text bubble */}
-          <Html
-            position={[0, 1.2, 0]}
-            center
-            style={{
-              background: 'rgba(0, 0, 0, 0.7)',
-              padding: '8px 12px',
-              borderRadius: '8px',
-              transform: 'translate(-50%, -50%)',
-            }}
-          >
-            <div className="text-white font-mono whitespace-nowrap">
-              {/* Add a simple typing animation effect */}
-              <span className="animate-typing">
-                hi, I'm Innio
-              </span>
-            </div>
-          </Html>
-        </group>
       )}
     </>
   )
