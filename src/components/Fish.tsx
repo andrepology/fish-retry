@@ -8,7 +8,7 @@ import { FishBehavior, FishState } from '../steering/FishBehavior'
 
 const Fish: React.FC = () => {
   // --- Basic configuration --
-  const [tailCount, setTailCount] = useState(0)
+  const [tailCount, setTailCount] = useState(4)
   const { camera } = useThree()
   const headRef = useRef<THREE.Mesh>(null)
   const arrowRef = useRef<THREE.ArrowHelper>(null)
@@ -153,6 +153,17 @@ const Fish: React.FC = () => {
           setWanderTargetState(headRef.current.position.clone())
         }
         setCurrentBehavior(FishState.WANDER)
+      } else if (key === 't') {
+        // Toggle TALK state
+        if (fishBehavior.state === FishState.TALK) {
+          fishBehavior.stopTalking()
+        } else if (headRef.current) {
+          fishBehavior.startTalking(
+            headRef.current.position.clone(),
+            currentVelocity.current.clone()
+          )
+        }
+        setCurrentBehavior(fishBehavior.state)
       }
     }
     window.addEventListener('keydown', onKeyDown)
@@ -170,10 +181,11 @@ const Fish: React.FC = () => {
     const params = wanderParams.current
     const priorPos = headRef.current!.position.clone()
 
-    if (fishBehavior.state === FishState.REST && fishBehavior.restPosition && fishBehavior.restDirection) {
+    if ((fishBehavior.state === FishState.REST || fishBehavior.state === FishState.TALK) 
+        && fishBehavior.stationaryPosition && fishBehavior.stationaryDirection) {
       const sway = Math.sin(timeRef.current * guiConfig.swayFreq) * guiConfig.swayAmplitude
-      const perp = new THREE.Vector3(-fishBehavior.restDirection.z, 0, fishBehavior.restDirection.x)
-      const targetPos = fishBehavior.restPosition.clone().add(perp.multiplyScalar(sway))
+      const perp = new THREE.Vector3(-fishBehavior.stationaryDirection.z, 0, fishBehavior.stationaryDirection.x)
+      const targetPos = fishBehavior.stationaryPosition.clone().add(perp.multiplyScalar(sway))
       headRef.current!.position.lerp(targetPos, 0.1)
     } else if (fishBehavior.state === FishState.WANDER) {
       applyBounds(headRef.current!.position)
@@ -341,6 +353,9 @@ const Fish: React.FC = () => {
     updateTailSegments(intendedDir)
   })
 
+  // Add ref for talk overlay
+  const talkOverlayRef = useRef<THREE.Group>(null)
+
   return (
     <>
       <EffectComposer enabled={false}>
@@ -475,6 +490,43 @@ const Fish: React.FC = () => {
             transform: 'translate(-50%, -50%)'
           }}>×</div>
         </Html>
+      )}
+
+      {/* Talk Overlay */}
+      {fishBehavior.state === FishState.TALK && (
+        <group ref={talkOverlayRef}>
+          {/* Vertical line */}
+          <line>
+            <bufferGeometry>
+              <bufferAttribute
+                attach="attributes-position"
+                count={2}
+                itemSize={3}
+                array={new Float32Array([0, 0, 0, 0, 1, 0])}
+              />
+            </bufferGeometry>
+            <lineBasicMaterial color="white" />
+          </line>
+          
+          {/* Text bubble */}
+          <Html
+            position={[0, 1.2, 0]}
+            center
+            style={{
+              background: 'rgba(0, 0, 0, 0.7)',
+              padding: '8px 12px',
+              borderRadius: '8px',
+              transform: 'translate(-50%, -50%)',
+            }}
+          >
+            <div className="text-white font-mono whitespace-nowrap">
+              {/* Add a simple typing animation effect */}
+              <span className="animate-typing">
+                hi, I'm Innio
+              </span>
+            </div>
+          </Html>
+        </group>
       )}
     </>
   )
