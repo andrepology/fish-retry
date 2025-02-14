@@ -113,7 +113,7 @@ const Fish: React.FC = () => {
 
   // --- Set up arrow helper for debugging the head's intended direction ---
   useEffect(() => {
-    if (headRef.current && !arrowRef.current) {
+    if (!headRef.current && !arrowRef.current) {
       const arrow = new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), headRef.current.position, 1.5, 0x00ffff)
       arrowRef.current = arrow
       headRef.current.parent?.add(arrow)
@@ -398,9 +398,55 @@ const Fish: React.FC = () => {
   // Add this ref for the Line
   const lineRef = useRef<THREE.Line>(null)
 
+  // Add these near the top with other state declarations
+  const [displayText, setDisplayText] = useState("");
+  const fullText = "I'm Innio. Who are you?";
+  const wordDelay = 200; // milliseconds between words
+
+  // Add this style to your component
+  const styles = {
+    container: {
+      display: 'flex',
+      justifyContent: 'flex-start',
+      minWidth: '200px'
+    },
+    textBox: {
+      background: 'rgba(0, 0, 0, 0.3)',
+      color: 'white',
+      padding: '4px 8px',
+      borderRadius: '6px',
+      border: '1px solid rgba(255, 255, 255, 0.2)',
+      fontFamily: 'monospace',
+      fontSize: '14px',
+      whiteSpace: 'nowrap',
+      userSelect: 'none',
+      textAlign: 'left',
+      display: 'inline-block'
+    }
+  }
+
+  // Update the text streaming logic
+  useEffect(() => {
+    if (fishBehavior.state === FishState.TALK) {
+      const words = fullText.split(' ');
+      setDisplayText(''); // Reset text
+      
+      words.forEach((word, index) => {
+        setTimeout(() => {
+          setDisplayText(prev => {
+            const newText = prev + (index > 0 ? ' ' : '') + word;
+            return newText.padEnd(fullText.length, ' '); // Pad with spaces to maintain width
+          });
+        }, index * wordDelay + Math.random() * 200);
+      });
+    } else {
+      setDisplayText('');
+    }
+  }, [fishBehavior.state]);
+
   return (
     <>
-      <EffectComposer enabled={false}>
+      <EffectComposer enabled={true}>
         <Bloom 
           intensity={50.0}
           luminanceThreshold={0.5}
@@ -409,7 +455,7 @@ const Fish: React.FC = () => {
           kernelSize={2}
           resolutionScale={0.5}
         />
-        <Pixelation granularity={1} />
+        {/* <Pixelation granularity={1} /> */}
       </EffectComposer>
 
       {/* Ground plane for food-click detection */}
@@ -445,22 +491,30 @@ const Fish: React.FC = () => {
           />
           <primitive object={new THREE.Object3D()} scale={[1.2, 0.85, 1]} />
 
-          {(fishBehavior.state === FishState.WANDER || fishBehavior.state === FishState.APPROACH || fishBehavior.state === FishState.TALK) && (
+          {(fishBehavior.state === FishState.TALK) && (
             <group>
               {/* Vertical line using Line */}
               
 
               {/* Text bubble */}
               <Html
-                position={[2, 4.5, -0.5]}
+                position={[2.5, 4.5, -0.5]}
                 transform
-                occlude={[headRef]}
-                distanceFactor={12}
+                occlude
+                distanceFactor={7}
                 sprite
-              >
-                <div className="bg-black/80 text-white px-2 py-1 rounded-lg border border-white/20 
-                            text-sm whitespace-nowrap select-none">
-                  Hi, I'm Innio!
+                style={{
+                  
+                  color: 'white',
+                  fontSize: '12px',
+                  
+                 
+                }}
+              > 
+                <div style={styles.container}>
+                  <div style={styles.textBox}>
+                    {displayText || '\u00A0'}  {/* Use non-breaking space if empty */}
+                  </div>
                 </div>
               </Html>
             </group>
