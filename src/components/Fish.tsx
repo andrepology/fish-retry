@@ -456,48 +456,29 @@ const Fish: React.FC = () => {
   const lineRef = useRef<THREE.Line>(null)
 
   // Add these near the top with other state declarations
-  const [displayText, setDisplayText] = useState("");
-  const fullText = "I'm Innio. Who are you?";
+  const [displayWords, setDisplayWords] = useState<{ text: string; visible: boolean }[]>([]);
+  const fullText = "Where there is a will, there is a way.";
   const wordDelay = 200; // milliseconds between words
-
-  // Add this style to your component
-  const styles = {
-    container: {
-      display: 'flex',
-      justifyContent: 'flex-start',
-      minWidth: '200px'
-    },
-    textBox: {
-      background: 'rgba(0, 0, 0, 0.3)',
-      color: 'white',
-      padding: '4px 8px',
-      borderRadius: '6px',
-      border: '1px solid rgba(255, 255, 255, 0.2)',
-      fontFamily: 'monospace',
-      fontSize: '14px',
-      whiteSpace: 'nowrap',
-      userSelect: 'none',
-      textAlign: 'left',
-      display: 'inline-block'
-    }
-  }
 
   // Update the text streaming logic
   useEffect(() => {
     if (fishBehavior.state === FishState.TALK) {
       const words = fullText.split(' ');
-      setDisplayText(''); // Reset text
+      // Initialize all words as invisible
+      setDisplayWords(words.map(word => ({ text: word, visible: false })));
       
-      words.forEach((word, index) => {
+      // Make each word visible one at a time
+      words.forEach((_, index) => {
         setTimeout(() => {
-          setDisplayText(prev => {
-            const newText = prev + (index > 0 ? ' ' : '') + word;
-            return newText.padEnd(fullText.length, ' '); // Pad with spaces to maintain width
-          });
+          setDisplayWords(prev => 
+            prev.map((word, i) => 
+              i === index ? { ...word, visible: true } : word
+            )
+          );
         }, index * wordDelay + Math.random() * 200);
       });
     } else {
-      setDisplayText('');
+      setDisplayWords([]);
     }
   }, [fishBehavior.state]);
 
@@ -561,17 +542,22 @@ const Fish: React.FC = () => {
                 occlude
                 distanceFactor={7}
                 sprite
-                style={{
-                  
-                  color: 'white',
-                  fontSize: '12px',
-                  
-                 
-                }}al
               > 
-                <div style={styles.container}>
-                  <div style={styles.textBox}>
-                    {displayText || '\u00A0'}  {/* Use non-breaking space if empty */}
+                <div className="min-w-[120px] max-w-[200px] flex justify-start">
+                  <div className="w-full bg-black/30 z-50 text-white px-3 py-2 rounded-md border border-white/20 font-mono text-sm break-words">
+                    <div className="flex flex-wrap gap-1">
+                      {displayWords.map((word, index) => (
+                        <span
+                          key={index}
+                          className={`transition-opacity duration-300 ${
+                            word.visible ? 'opacity-100' : 'opacity-0'
+                          }`}
+                        >
+                          {word.text}
+                        </span>
+                      ))}
+                      {displayWords.length === 0 && '\u00A0'}
+                    </div>
                   </div>
                 </div>
               </Html>
