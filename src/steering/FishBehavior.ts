@@ -27,6 +27,9 @@ export class FishBehavior {
   public stationaryPosition: THREE.Vector3 | null;
   public stationaryDirection: THREE.Vector3 | null;
 
+  // Temporary vector to reduce allocations
+  private _tempVec: THREE.Vector3;
+
   constructor(options?: FishBehaviorOptions) {
     this.options = {
       approachThreshold: 0.5,
@@ -35,13 +38,14 @@ export class FishBehavior {
       bounds: { min: -10, max: 10 },
       onEat: undefined,
       ...options,
-    }
+    };
     this.state = FishState.TALK;
     this.target = null;
     this.targetQueue = [];
     this.stationaryPosition = null;
     this.stationaryDirection = null;
     this.timer = 0;
+    this._tempVec = new THREE.Vector3();
   }
 
   /**
@@ -74,9 +78,13 @@ export class FishBehavior {
   public update(headPosition: THREE.Vector3, velocity: THREE.Vector3, deltaTime: number) {
     switch (this.state) {
       case FishState.APPROACH:
-        if (this.target && headPosition.distanceTo(this.target) < this.options.approachThreshold!) {
-          this.state = FishState.EAT;
-          this.timer = 0;
+        if (this.target) {
+          // Reuse the temporary vector instead of creating a new one
+          this._tempVec.copy(headPosition).sub(this.target);
+          if (this._tempVec.length() < this.options.approachThreshold!) {
+            this.state = FishState.EAT;
+            this.timer = 0;
+          }
         }
         break;
 
