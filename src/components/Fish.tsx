@@ -13,6 +13,30 @@ const Fish: React.FC = () => {
   const headRef = useRef<THREE.Mesh>(null)
   const arrowRef = useRef<THREE.ArrowHelper>(null)
 
+  // Create gradient texture for toon material
+  const gradientMap = useMemo(() => {
+    // Create a gradient with 4 distinct steps for visible toon shading
+    const colors = new Uint8Array([0, 80, 160, 255])  // dark, dark-mid, light-mid, light
+    const texture = new THREE.DataTexture(
+      colors,
+      colors.length,
+      1,
+      THREE.RedFormat
+    )
+    texture.needsUpdate = true
+    return texture
+  }, [])
+
+  // Cache head geometry and material to avoid recreating every render
+  const headGeometry = useMemo(() => new THREE.SphereGeometry(0.08, 32, 32), [])
+  const headMaterial = useMemo(() => new THREE.MeshToonMaterial({
+    color: '#E0B0FF',
+    emissive: '#4B0082',
+    emissiveIntensity: 0.4,
+    toneMapped: false,
+    gradientMap: gradientMap
+  }), [gradientMap])
+
   // --- Single velocity vector instance (we removed the unused maxSpeed ref and velocityRef) ---
   const currentVelocity = useRef(new THREE.Vector3())
   const prevHeadPos = useRef(new THREE.Vector3())
@@ -392,9 +416,6 @@ const Fish: React.FC = () => {
     }
   })
 
-  // Add ref for talk overlay
-  const talkOverlayRef = useRef<THREE.Group>(null)
-
   // Add this ref for the Line
   const lineRef = useRef<THREE.Line>(null)
 
@@ -483,11 +504,12 @@ const Fish: React.FC = () => {
         {/* Fish Head */}
         <mesh ref={headRef} castShadow>
           <sphereGeometry args={[0.08, 16, 16]} />
-          <meshStandardMaterial 
+          <meshToonMaterial 
             color="#E0B0FF"
             emissive="#4B0082"
             emissiveIntensity={0.4}
             toneMapped={false}
+            gradientMap={gradientMap}
           />
           <primitive object={new THREE.Object3D()} scale={[1.2, 0.85, 1]} />
 
@@ -540,13 +562,12 @@ const Fish: React.FC = () => {
               castShadow
             >
               <sphereGeometry args={[radius, 12, 12]} />
-              <meshStandardMaterial 
+              <meshToonMaterial 
                 color={color}
                 emissive={color}
                 emissiveIntensity={0.3}
                 toneMapped={false}
-                roughness={0.7}
-                metalness={0.1}
+                gradientMap={gradientMap}
               />
               <primitive object={new THREE.Object3D()} scale={[1, verticalScale, 1]} />
             </mesh>
