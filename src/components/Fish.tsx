@@ -56,52 +56,88 @@ const Fish: React.FC = () => {
   const [currentBehavior, setCurrentBehavior] = useState<FishState>(FishState.WANDER)
 
   // --- GUI controls for steering and tail behavior ---
-  const guiConfig = useControls({
-    // Wander controls
+  const movementControls = useControls('Movement', {
     maxSpeed: { value: 0.02, min: 0.01, max: 0.1, step: 0.01 },
-    maxSteerForce: { value: 0.001, min: 0.0001, max: 0.01, step: 0.0001 },
+    steeringForce: { value: 0.001, min: 0.0001, max: 0.01, step: 0.0001 },
     slowingRadius: { value: 2.0, min: 0.5, max: 5, step: 0.1 },
-    visionDistance: { value: 5, min: 1, max: 10, step: 0.5 },
+  }, { collapsed: true })
+
+  const wanderControls = useControls('Wander', {
+    visionRange: { value: 5, min: 1, max: 10, step: 0.5 },
     forwardDistance: { value: 2.5, min: 1, max: 5, step: 0.1 },
     radius: { value: 1, min: 0.1, max: 3, step: 0.1 },
     updateInterval: { value: 0.8, min: 0.1, max: 2, step: 0.1 },
-    arrivalThreshold: { value: 0.3, min: 0.1, max: 1, step: 0.1 },
-    boundaryMin: { value: -20, min: -50, max: 0, step: 1 },
-    boundaryMax: { value: 20, min: 0, max: 50, step: 1 },
-    boundaryBuffer: { value: 30, min: 1, max: 10, step: 0.5 },
-    // Tail wave controls
-    swayFreq: { value: 1.0, min: 0.1, max: 5, step: 0.1 },
-    swayAmplitude: { value: 0.1, min: 0, max: 0.5, step: 0.01 },
+    arrivalDistance: { value: 0.3, min: 0.1, max: 1, step: 0.1 },
+  }, { collapsed: true })
+
+  const boundaryControls = useControls('Boundaries', {
+    min: { value: -20, min: -50, max: 0, step: 1 },
+    max: { value: 20, min: 0, max: 50, step: 1 },
+    buffer: { value: 30, min: 1, max: 10, step: 0.5 },
+  }, { collapsed: true })
+
+  const animationControls = useControls('Animation', {
+    swayFrequency: { value: 1.0, min: 0.1, max: 5, step: 0.1 },
+    swayAmount: { value: 0.1, min: 0, max: 0.5, step: 0.01 },
     waveSpeed: { value: 3, min: 0.1, max: 10, step: 0.1 },
-    waveAmplitudeBase: { value: 0.2, min: 0, max: 1, step: 0.01 },
+    waveBase: { value: 0.2, min: 0, max: 1, step: 0.01 },
   }, { collapsed: true })
 
   // --- Consolidate wander parameters (used for movement and steering) ---
   const wanderParams = useRef({
-    maxSpeed: guiConfig.maxSpeed,
-    maxSteerForce: guiConfig.maxSteerForce,
-    slowingRadius: guiConfig.slowingRadius,
-    visionDistance: guiConfig.visionDistance,
-    forwardDistance: guiConfig.forwardDistance,
-    radius: guiConfig.radius,
-    updateInterval: guiConfig.updateInterval,
-    arrivalThreshold: guiConfig.arrivalThreshold,
-    bounds: { min: guiConfig.boundaryMin, max: guiConfig.boundaryMax },
-    boundaryBuffer: guiConfig.boundaryBuffer,
+    maxSpeed: movementControls.maxSpeed,
+    maxSteerForce: movementControls.steeringForce,
+    slowingRadius: movementControls.slowingRadius,
+    visionDistance: wanderControls.visionRange,
+    forwardDistance: wanderControls.forwardDistance,
+    radius: wanderControls.radius,
+    updateInterval: wanderControls.updateInterval,
+    arrivalThreshold: wanderControls.arrivalDistance,
+    bounds: { min: boundaryControls.min, max: boundaryControls.max },
+    boundaryBuffer: boundaryControls.buffer,
   })
+
+  // Update parameters when controls change
+  useEffect(() => {
+    wanderParams.current = {
+      ...wanderParams.current,
+      maxSpeed: movementControls.maxSpeed,
+      maxSteerForce: movementControls.steeringForce,
+      slowingRadius: movementControls.slowingRadius,
+    }
+  }, [movementControls])
+
+  useEffect(() => {
+    wanderParams.current = {
+      ...wanderParams.current,
+      visionDistance: wanderControls.visionRange,
+      forwardDistance: wanderControls.forwardDistance,
+      radius: wanderControls.radius,
+      updateInterval: wanderControls.updateInterval,
+      arrivalThreshold: wanderControls.arrivalDistance,
+    }
+  }, [wanderControls])
+
+  useEffect(() => {
+    wanderParams.current = {
+      ...wanderParams.current,
+      bounds: { min: boundaryControls.min, max: boundaryControls.max },
+      boundaryBuffer: boundaryControls.buffer,
+    }
+  }, [boundaryControls])
 
   // --- Create FishBehavior instance (state machine) ---
   const fishBehavior = useMemo(() => new FishBehavior({
-    approachThreshold: guiConfig.arrivalThreshold,
+    approachThreshold: wanderControls.arrivalDistance,
     restDuration: 0.5,
     eatDuration: 0.3,
-    bounds: { min: guiConfig.boundaryMin, max: guiConfig.boundaryMax },
+    bounds: { min: boundaryControls.min, max: boundaryControls.max },
     onEat: () => {
       console.log('Food eaten – triggering onEat callback')
       setFoodTarget(null)
       setTailCount((prev) => prev + 1)
     },
-  }), [guiConfig.arrivalThreshold, guiConfig.boundaryMin, guiConfig.boundaryMax])
+  }), [wanderControls.arrivalDistance, boundaryControls.min, boundaryControls.max])
 
   // --- Food target state (for placing food and marker rendering) ---
   const [foodTarget, setFoodTarget] = useState<THREE.Vector3 | null>(null)
@@ -207,7 +243,7 @@ const Fish: React.FC = () => {
 
     if ((fishBehavior.state === FishState.REST || fishBehavior.state === FishState.TALK) 
         && fishBehavior.stationaryPosition && fishBehavior.stationaryDirection) {
-      const sway = Math.sin(timeRef.current * guiConfig.swayFreq) * guiConfig.swayAmplitude
+      const sway = Math.sin(timeRef.current * animationControls.swayFrequency) * animationControls.swayAmount
       const perp = new THREE.Vector3(-fishBehavior.stationaryDirection.z, 0, fishBehavior.stationaryDirection.x)
       const targetPos = fishBehavior.stationaryPosition.clone().add(perp.multiplyScalar(sway))
       headRef.current!.position.lerp(targetPos, 0.1)
@@ -326,14 +362,14 @@ const Fish: React.FC = () => {
       if (fishBehavior.state === FishState.REST) {
         const swayPhase = i * 0.2
         const attenuation = 1 - i / (tailCount * 1.5)
-        const sway = Math.sin(timeRef.current * guiConfig.swayFreq + swayPhase) * (guiConfig.swayAmplitude * attenuation)
+        const sway = Math.sin(timeRef.current * animationControls.swayFrequency + swayPhase) * (animationControls.swayAmount * attenuation)
         const perp = new THREE.Vector3(-headDirection.z, 0, headDirection.x)
         basePos.add(perp.multiplyScalar(sway))
       } else {
         const speedFactor = THREE.MathUtils.clamp(currentVelocity.current.length() * 10, 0.2, 1)
-        const baseAmp = guiConfig.waveAmplitudeBase * (1 - i / tailCount)
+        const baseAmp = animationControls.waveBase * (1 - i / tailCount)
         const waveAmp = baseAmp * speedFactor
-        const waveOffset = Math.sin(timeRef.current * guiConfig.waveSpeed + i * 0.5) * waveAmp
+        const waveOffset = Math.sin(timeRef.current * animationControls.waveSpeed + i * 0.5) * waveAmp
         const perp = new THREE.Vector3(-headDirection.z, 0, headDirection.x)
         basePos.add(perp.multiplyScalar(waveOffset))
       }
@@ -531,7 +567,7 @@ const Fish: React.FC = () => {
                   fontSize: '12px',
                   
                  
-                }}
+                }}al
               > 
                 <div style={styles.container}>
                   <div style={styles.textBox}>
@@ -609,7 +645,8 @@ const Fish: React.FC = () => {
           background: 'rgba(0,0,0,0.5)',
           padding: '5px'
         }}>
-          Current State: {currentBehavior}
+          Current State: {currentBehavior} | 
+          Speed: {currentVelocity.current?.length().toFixed(4)} / {movementControls.maxSpeed.toFixed(4)}
           {foodTarget && ` | Food Target: (${foodTarget.x.toFixed(2)}, ${foodTarget.z.toFixed(2)})`}
         </div>
       </Html>
