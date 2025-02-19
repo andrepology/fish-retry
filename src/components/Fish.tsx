@@ -5,6 +5,7 @@ import * as THREE from 'three'
 import { useControls, Leva } from 'leva'
 import { EffectComposer, Bloom, Pixelation } from '@react-three/postprocessing'
 import { FishBehavior, FishState } from '../steering/FishBehavior'
+import { useSpeechInteraction } from '../hooks/useSpeechInteraction'
 
 const Fish: React.FC = () => {
   // --- Basic configuration --
@@ -389,6 +390,9 @@ const Fish: React.FC = () => {
   // --- Main animation loop ---
   const lineEndRef = useRef(new THREE.Vector3(0, 1.5, 0))
 
+  // Import our speech hook.
+  const { startRecording, stopRecording, userSpeech, fishResponse } = useSpeechInteraction()
+
   useFrame((state: RootState, delta: number) => {
     timeRef.current = state.clock.elapsedTime
     if (!headRef.current) return
@@ -518,8 +522,19 @@ const Fish: React.FC = () => {
       </mesh>
 
       <group>
-        {/* Fish Head */}
-        <mesh ref={headRef} castShadow>
+        {/* Fish Head with added pointer events for speech interaction */}
+        <mesh 
+          ref={headRef}
+          castShadow
+          onPointerDown={(e) => {
+            // Start recording when pressed on the fish head.
+            startRecording()
+          }}
+          onPointerUp={(e) => {
+            // Stop recording when the pointer is released.
+            stopRecording()
+          }}
+        >
           <sphereGeometry args={[0.08, 16, 16]} />
           <meshToonMaterial 
             color="#E0B0FF"
@@ -529,43 +544,71 @@ const Fish: React.FC = () => {
             gradientMap={gradientMap}
           />
           <primitive object={new THREE.Object3D()} scale={[1.2, 0.85, 1]} />
-
+          {/* If the fish is already in TALK state from previous behavior... */}
           {(fishBehavior.state === FishState.TALK) && (
             <group>
-              {/* Vertical line using Line */}
-              
-
-              {/* Text bubble */}
+              {/* Existing talk bubble (if any) */}
               <Html
                 position={[2.5, 4.5, -0.5]}
                 transform
                 occlude
                 distanceFactor={7}
-                sprite
-              > 
-                <div className="min-w-[120px] max-w-[200px] flex justify-start">
-                  <div className="w-full bg-black/30 z-50 text-white px-3 py-2 rounded-md border border-white/20 font-mono text-sm break-words">
-                    <div className="flex flex-wrap gap-1">
-                      {displayWords.map((word, index) => (
-                        <span
-                          key={index}
-                          className={`transition-opacity duration-300 ${
-                            word.visible ? 'opacity-100' : 'opacity-0'
-                          }`}
-                        >
-                          {word.text}
-                        </span>
-                      ))}
-                      {displayWords.length === 0 && '\u00A0'}
-                    </div>
+              >
+                <div className="min-w-[120px] max-w-[200px] flex justify-start bg-black/30 text-white px-3 py-2 rounded-md border border-white/20 font-mono text-sm">
+                  <div className="flex flex-wrap gap-1">
+                    {displayWords.map((word, index) => (
+                      <span
+                        key={index}
+                        className={`transition-opacity duration-300 ${
+                          word.visible ? 'opacity-100' : 'opacity-0'
+                        }`}
+                      >
+                        {word.text}
+                      </span>
+                    ))}
+                    {displayWords.length === 0 && '\u00A0'}
                   </div>
                 </div>
               </Html>
             </group>
           )}
-
-          
         </mesh>
+
+        {/* Display user's transcribed speech above the fish head */}
+        {userSpeech && headRef.current && (
+          <Html
+            position={[
+              headRef.current.position.x,
+              headRef.current.position.y + 1.2,
+              headRef.current.position.z
+            ]}
+            transform
+            occlude
+            distanceFactor={7}
+          >
+            <div className="bg-green-500 text-white px-3 py-1 rounded-md shadow-lg">
+              You: {userSpeech}
+            </div>
+          </Html>
+        )}
+
+        {/* Display the fish's response below the user speech */}
+        {fishResponse && headRef.current && (
+          <Html
+            position={[
+              headRef.current.position.x,
+              headRef.current.position.y + 0.6,
+              headRef.current.position.z
+            ]}
+            transform
+            occlude
+            distanceFactor={7}
+          >
+            <div className="bg-blue-500 text-white px-3 py-1 rounded-md shadow-lg">
+              Fish: {fishResponse}
+            </div>
+          </Html>
+        )}
 
         {/* Tail Segments */}
         {tailPositions.current.map((pos, idx) => {

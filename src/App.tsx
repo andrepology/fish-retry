@@ -88,7 +88,7 @@ const App = () => {
       </div>
 
       {/* Canvas container */}
-      <div className="fixed inset-0 w-full h-screen pointer-events-none" style={{ zIndex: 1 }}>
+      <div className="fixed inset-0 w-full h-screen" style={{ zIndex: 1 }}>
         <Suspense fallback={<div className="text-white">Loading...</div>}>
           <Canvas
             className="w-full h-full"
@@ -139,7 +139,7 @@ const App = () => {
 
       {/* Background image container */}
       <div
-        className="fixed inset-0 w-full h-screen overflow-hidden"
+        className="fixed inset-0 w-full h-screen overflow-hidden pointer-events-none"
         style={{
           zIndex: 2,
           isolation: 'isolate',
@@ -153,7 +153,7 @@ const App = () => {
         <img
           src={journalBg}
           alt="Journal background"
-          className="absolute w-full max-h-[100vh] object-contain cursor-grab active:cursor-grabbing"
+          className="absolute w-full max-h-[100vh] object-contain cursor-grab active:cursor-grabbing pointer-events-auto"
           style={{
             filter: `contrast(${1.6 + (dragY / window.innerHeight) * 0.1}) brightness(1.0)`,
             top: '80%',
