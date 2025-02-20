@@ -1,10 +1,11 @@
-import { Suspense, useState } from 'react'
-import { Canvas } from '@react-three/fiber'
-import { OrthographicCamera, Stats } from '@react-three/drei'
+import { Suspense, useState, useRef, useEffect } from 'react'
+import { Canvas, useThree, useFrame } from '@react-three/fiber'
+import { OrthographicCamera, Stats, CameraControls } from '@react-three/drei'
 import Fish from './components/Fish'
 import { useControls } from 'leva'
 import journalBg from './assets/journal.png'
 import * as THREE from 'three'
+import Starfield from './components/Starfield'
 
 const blendModes = [
   'normal', 'multiply', 'screen', 'overlay',
@@ -14,11 +15,44 @@ const blendModes = [
 
 type BlendMode = typeof blendModes[number]
 
+// Create a camera controller component
+const CameraController = ({ target }: { target: THREE.Vector3 }) => {
+  const controlsRef = useRef<CameraControls>(null)
+
+  useFrame(() => {
+    if (controlsRef.current) {
+      controlsRef.current.setLookAt(
+        target.x,
+        target.y + 20,
+        target.z + 10,
+        target.x,
+        target.y,
+        target.z,
+        true // enable smooth transitions
+      )
+    }
+  })
+
+  return (
+    <CameraControls
+      ref={controlsRef}
+      minDistance={10}
+      maxDistance={50}
+      dampingFactor={0.05} // Reduced for smoother movement
+      enabled={true}
+    />
+  )
+}
+
 const App = () => {
   const [blendMode, setBlendMode] = useState<BlendMode>('exclusion')
   const [dragY, setDragY] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
   const [startY, setStartY] = useState(0)
+  const [fishPosition, setFishPosition] = useState(new THREE.Vector3(0, 0, 0))
+  
+  // Add the ref for CameraControls
+  const controlsRef = useRef<CameraControls>(null)
 
   // Add Leva controls for lighting and camera
   const { 
@@ -52,6 +86,17 @@ const App = () => {
     cameraZoom: { value: 50, min: 10, max: 100, step: 1 },
     cameraNear: { value: 0.1, min: 0.1, max: 10, step: 0.1 },
     cameraFar: { value: 1000, min: 100, max: 2000, step: 100 }
+  })
+
+  // Add Starfield controls
+  const starfieldControls = useControls('Starfield', {
+    density: { value: 200, min: 100, max: 1000, step: 100 },
+    depth: { value: 100, min: 10, max: 200, step: 10 },
+    minSize: { value: 0.1, min: 0.05, max: 0.5, step: 0.05 },
+    maxSize: { value: 0.15, min: 0.1, max: 1, step: 0.05 },
+    speed: { value: 0.01, min: 0, max: 0.1, step: 0.01 },
+    twinkleSpeed: { value: 1.0, min: 0.1, max: 2, step: 0.1 },
+    twinkleAmount: { value: 0.6, min: 0, max: 1, step: 0.1 },
   })
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -93,8 +138,18 @@ const App = () => {
           <Canvas
             className="w-full h-full"
             shadows
-            style={{ background: 'transparent' }}
+            style={{ background: 'black' }}
           >
+            {/* Add Starfield before other scene elements */}
+            <Starfield
+              density={starfieldControls.density}
+              depth={starfieldControls.depth}
+              size={{ min: starfieldControls.minSize, max: starfieldControls.maxSize }}
+              speed={starfieldControls.speed}
+              twinkleSpeed={starfieldControls.twinkleSpeed}
+              twinkleAmount={starfieldControls.twinkleAmount}
+            />
+
             <OrthographicCamera 
               makeDefault 
               position={cameraPosition} 
@@ -103,6 +158,8 @@ const App = () => {
               near={cameraNear}
               far={cameraFar}
             />
+
+            <CameraController target={fishPosition} />
 
             <group>
               <ambientLight intensity={ambientIntensity} />
@@ -123,14 +180,15 @@ const App = () => {
               <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow position={[0, -0.5, 0]}>
                 <planeGeometry args={[100, 100]} />
                 <meshStandardMaterial
-                  color="#505050"
-                  roughness={0.8}
+                  color="#202020"
+                  roughness={0.2 }
                   metalness={0}
                 />
               </mesh>
             </group>
 
-            <Fish />
+            {/* Pass the fish position to update our fishPosition state */}
+            <Fish onPositionUpdate={setFishPosition} />
             {/* Stats panel for real-time performance measurement */}
             <Stats />
           </Canvas>

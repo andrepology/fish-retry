@@ -7,7 +7,11 @@ import { EffectComposer, Bloom, Pixelation } from '@react-three/postprocessing'
 import { FishBehavior, FishState } from '../steering/FishBehavior'
 import { useSpeechInteraction } from '../hooks/useSpeechInteraction'
 
-const Fish: React.FC = () => {
+interface FishProps {
+  onPositionUpdate?: (position: THREE.Vector3) => void
+}
+
+const Fish: React.FC<FishProps> = ({ onPositionUpdate }) => {
   // --- Basic configuration --
   const [tailCount, setTailCount] = useState(4)
   const { camera } = useThree()
@@ -454,6 +458,12 @@ const Fish: React.FC = () => {
         )
       }
     }
+
+    // After updating the fish's position,
+    // if a callback was provided, report the fish head's current position.
+    if (headRef.current && onPositionUpdate) {
+      onPositionUpdate(headRef.current.position.clone())
+    }
   })
 
   // Add this ref for the Line
@@ -488,215 +498,222 @@ const Fish: React.FC = () => {
 
   return (
     <>
-      <EffectComposer enabled={true}>
-        <Bloom 
-          intensity={50.0}
-          luminanceThreshold={0.5}
-          luminanceSmoothing={0.5}
-          mipmapBlur={true}
-          kernelSize={2}
-          resolutionScale={0.5}
-        />
-        {/* <Pixelation granularity={1} /> */}
-      </EffectComposer>
-
-      {/* Ground plane for food-click detection */}
-      <mesh
-        onPointerDown={(e) => {
-          const pt = e.point.clone()
-          pt.y = 0
-          // Always attempt to set a food target.
-          fishBehavior.setFoodTarget(pt)
-          // Optionally update React state for the food marker.
-          setFoodTarget(pt)
-          console.log('Food placed, new state:', fishBehavior.state)
-          // No need to force a state change here—the FishBehavior logic handles it.
-          setCurrentBehavior(fishBehavior.state)
-        }}
-        position={[0, -1, 0]}
-        rotation={[-Math.PI / 2, 0, 0]}
-        visible={false}
-      >
-        <planeGeometry args={[100, 100]} />
-        <meshBasicMaterial transparent opacity={0} />
-      </mesh>
-
+      {/* Move Bloom inside a group with just the Fish elements */}
       <group>
-        {/* Fish Head with added pointer events for speech interaction */}
-        <mesh 
-          ref={headRef}
-          castShadow
-          onPointerDown={(e) => {
-            // Start recording when pressed on the fish head.
-            startRecording()
-          }}
-          onPointerUp={(e) => {
-            // Stop recording when the pointer is released.
-            stopRecording()
-          }}
-        >
-          <sphereGeometry args={[0.08, 16, 16]} />
-          <meshToonMaterial 
-            color="#E0B0FF"
-            emissive="#4B0082"
-            emissiveIntensity={0.4}
-            toneMapped={false}
-            gradientMap={gradientMap}
+        <EffectComposer enabled={true}>
+          <Bloom 
+            intensity={50.0}
+            luminanceThreshold={0.5}
+            luminanceSmoothing={0.5}
+            mipmapBlur={true}
+            kernelSize={2}
+            resolutionScale={0.5}
           />
-          <primitive object={new THREE.Object3D()} scale={[1.2, 0.85, 1]} />
-          {/* If the fish is already in TALK state from previous behavior... */}
-          {(fishBehavior.state === FishState.TALK) && (
-            <group>
-              {/* Existing talk bubble (if any) */}
-              <Html
-                position={[2.5, 4.5, -0.5]}
-                transform
-                occlude
-                distanceFactor={7}
-              >
-                <div className="min-w-[120px] max-w-[200px] flex justify-start bg-black/30 text-white px-3 py-2 rounded-md border border-white/20 font-mono text-sm">
-                  <div className="flex flex-wrap gap-1">
-                    {displayWords.map((word, index) => (
-                      <span
-                        key={index}
-                        className={`transition-opacity duration-300 ${
-                          word.visible ? 'opacity-100' : 'opacity-0'
-                        }`}
-                      >
-                        {word.text}
-                      </span>
-                    ))}
-                    {displayWords.length === 0 && '\u00A0'}
-                  </div>
-                </div>
-              </Html>
-            </group>
-          )}
-        </mesh>
+        </EffectComposer>
 
-        {/* Display user's transcribed speech above the fish head */}
-        {userSpeech && headRef.current && (
-          <Html
-            position={[
-              headRef.current.position.x,
-              headRef.current.position.y + 1.2,
-              headRef.current.position.z
-            ]}
-            transform
-            occlude
-            distanceFactor={7}
-          >
-            <div className="bg-green-500 text-white px-3 py-1 rounded-md shadow-lg">
-              You: {userSpeech}
-            </div>
-          </Html>
-        )}
-
-        {/* Display the fish's response below the user speech */}
-        {fishResponse && headRef.current && (
-          <Html
-            position={[
-              headRef.current.position.x,
-              headRef.current.position.y + 0.6,
-              headRef.current.position.z
-            ]}
-            transform
-            occlude
-            distanceFactor={7}
-          >
-            <div className="bg-blue-500 text-white px-3 py-1 rounded-md shadow-lg">
-              Fish: {fishResponse}
-            </div>
-          </Html>
-        )}
-
-        {/* Tail Segments */}
-        {tailPositions.current.map((pos, idx) => {
-          const segProgress = idx / tailCount;
-          const taperFactor = Math.pow(1 - segProgress, 0.5);
-          const baseRadius = 0.15;
-          const radius = baseRadius * taperFactor * (1 - (idx + 1) / (tailCount + 2));
-          const verticalScale = 0.85 - (segProgress * 0.15);
-          const color = new THREE.Color();
-          color.setHSL(0.77, 1.0, 0.9 - (segProgress * 0.3));
-          return (
-            <mesh
-              key={idx}
-              ref={(el) => tailRefs.current[idx] = el}
-              position={pos}
-              castShadow
-            >
-              <sphereGeometry args={[radius, 12, 12]} />
-              <meshToonMaterial 
-                color={color}
-                emissive={color}
-                emissiveIntensity={0.3}
-                toneMapped={false}
-                gradientMap={gradientMap}
-              />
-              <primitive object={new THREE.Object3D()} scale={[1, verticalScale, 1]} />
-            </mesh>
-          );
-        })}
-      </group>
-
-      {/* Food Marker */}
-      { [fishBehavior.target, ...fishBehavior.targetQueue].filter(Boolean).map((ft, idx) => (
+        {/* Ground plane for food-click detection */}
         <mesh
-          key={idx}
-          position={[
-            ft!.x,
-            ft!.y + Math.sin(timeRef.current * 2) * 0.1,
-            ft!.z,
-          ]}
-          castShadow
+          onPointerDown={(e) => {
+            const pt = e.point.clone()
+            pt.y = 0
+            fishBehavior.setFoodTarget(pt)
+            setFoodTarget(pt)
+            console.log('Food placed, new state:', fishBehavior.state)
+            setCurrentBehavior(fishBehavior.state)
+          }}
+          position={[0, -1, 0]}
+          rotation={[-Math.PI / 2, 0, 0]}
+          visible={false}
         >
-          <sphereGeometry args={[0.15, 16, 16]} />
-          <meshStandardMaterial 
-            color="red"
-            emissive="red"
-            emissiveIntensity={0.3}
-            toneMapped={false}
-            transparent
-            opacity={fishBehavior.state === FishState.EAT ? 0.5 : 1}
-          />
+          <planeGeometry args={[100, 100]} />
+          <meshBasicMaterial transparent opacity={0} />
         </mesh>
-      ))}
 
-      {/* Debug Overlay */}
-      <Html fullscreen style={{ pointerEvents: 'none' }}>
-        <div style={{
-          position: 'absolute',
-          top: 20,
-          left: 20,
-          color: 'white',
-          fontFamily: 'monospace',
-          background: 'rgba(0,0,0,0.5)',
-          padding: '5px'
-        }}>
-          Current State: {currentBehavior} | 
-          Speed: {currentVelocity.current?.length().toFixed(4)} / {movementControls.maxSpeed.toFixed(4)}
-          {foodTarget && ` | Food Target: (${foodTarget.x.toFixed(2)}, ${foodTarget.z.toFixed(2)})`}
-        </div>
-      </Html>
+        <group>
+          {/* Fish Head with added pointer events for speech interaction */}
+          <mesh 
+            ref={headRef}
+            castShadow
+            onPointerDown={(e) => {
+              // Start recording when pressed on the fish head.
+              startRecording()
+            }}
+            onPointerUp={(e) => {
+              // Stop recording when the pointer is released.
+              stopRecording()
+            }}
+          >
+            <sphereGeometry args={[0.08, 16, 16]} />
+            <meshToonMaterial 
+              color="#E0B0FF"
+              emissive="#4B0082"
+              emissiveIntensity={0.4}
+              toneMapped={false}
+              gradientMap={gradientMap}
+            />
+            <primitive object={new THREE.Object3D()} scale={[1.2, 0.85, 1]} />
+            {/* If the fish is already in TALK state from previous behavior... */}
+            {(fishBehavior.state === FishState.TALK) && (
+              <group>
+                {/* Existing talk bubble (if any) */}
+                <Html
+                  position={[2.5, 4.5, -0.5]}
+                  transform
+                  occlude
+                  distanceFactor={7}
+                >
+                  <div className="min-w-[120px] max-w-[200px] flex justify-start bg-black/30 text-white px-3 py-2 rounded-md border border-white/20 font-mono text-sm">
+                    <div className="flex flex-wrap gap-1">
+                      {displayWords.map((word, index) => (
+                        <span
+                          key={index}
+                          className={`transition-opacity duration-300 ${
+                            word.visible ? 'opacity-100' : 'opacity-0'
+                          }`}
+                        >
+                          {word.text}
+                        </span>
+                      ))}
+                      {displayWords.length === 0 && '\u00A0'}
+                    </div>
+                  </div>
+                </Html>
+              </group>
+            )}
+          </mesh>
 
-      {/* (Optional) Wander Target Marker */}
-      {fishBehavior.state === FishState.WANDER && (
-        <Html
-          position={[wanderTargetState.x, wanderTargetState.y, wanderTargetState.z]}
-          style={{ pointerEvents: 'none' }}
-          key={`${wanderTargetState.x.toFixed(2)}-${wanderTargetState.y.toFixed(2)}-${wanderTargetState.z.toFixed(2)}`}
-        >
+          {/* Display user's transcribed speech above the fish head */}
+          {userSpeech && headRef.current && (
+            <Html
+              position={[
+                headRef.current.position.x,
+                headRef.current.position.y + 1.2,
+                headRef.current.position.z
+              ]}
+              transform
+              occlude
+              distanceFactor={7}
+            >
+              <div className="bg-green-500 text-white px-3 py-1 rounded-md shadow-lg">
+                You: {userSpeech}
+              </div>
+            </Html>
+          )}
+
+          {/* Display the fish's response below the user speech */}
+          {fishResponse && headRef.current && (
+            <Html
+              position={[
+                headRef.current.position.x,
+                headRef.current.position.y + 0.6,
+                headRef.current.position.z
+              ]}
+              transform
+              occlude
+              distanceFactor={7}
+            >
+              <div className="bg-blue-500 text-white px-3 py-1 rounded-md shadow-lg">
+                Fish: {fishResponse}
+              </div>
+            </Html>
+          )}
+
+          {/* Tail Segments */}
+          {tailPositions.current.map((pos, idx) => {
+            const segProgress = idx / tailCount;
+            const taperFactor = Math.pow(1 - segProgress, 0.5);
+            const baseRadius = 0.15;
+            const radius = baseRadius * taperFactor * (1 - (idx + 1) / (tailCount + 2));
+            const verticalScale = 0.85 - (segProgress * 0.15);
+            const color = new THREE.Color();
+            color.setHSL(0.77, 1.0, 0.9 - (segProgress * 0.3));
+            return (
+              <mesh
+                key={idx}
+                ref={(el) => tailRefs.current[idx] = el}
+                position={pos}
+                castShadow
+              >
+                <sphereGeometry args={[radius, 12, 12]} />
+                <meshToonMaterial 
+                  color={color}
+                  emissive={color}
+                  emissiveIntensity={0.3}
+                  toneMapped={false}
+                  gradientMap={gradientMap}
+                />
+                <primitive object={new THREE.Object3D()} scale={[1, verticalScale, 1]} />
+              </mesh>
+            );
+          })}
+        </group>
+
+        {/* Food Marker */}
+        { [fishBehavior.target, ...fishBehavior.targetQueue].filter(Boolean).map((ft, idx) => (
+          <mesh
+            key={idx}
+            position={[
+              ft!.x,
+              ft!.y + Math.sin(timeRef.current * 3) * 0.05 + 0.02,
+              ft!.z,
+            ]}
+            castShadow
+            scale={1}
+          >
+            <circleGeometry args={[0.2, 32]} />
+            <meshBasicMaterial 
+              color="#FFFFFF"
+              transparent
+              opacity={1}
+              side={THREE.DoubleSide}
+            />
+            <mesh scale={1.2}>
+              <circleGeometry args={[0.2, 32]} />
+              <meshBasicMaterial
+                color="#FFFFFF"
+                transparent
+                opacity={0.5}
+                side={THREE.DoubleSide}
+              />
+            </mesh>
+          </mesh>
+        ))}
+
+        {/* Debug Overlay */}
+        <Html fullscreen style={{ pointerEvents: 'none' }}>
           <div style={{
-            display: 'none',
-            color: '#4169E1',
-            fontSize: '16px',
-            fontWeight: 'bold',
-            opacity: 0.8,
-            transform: 'translate(-50%, -50%)'
-          }}>×</div>
+            position: 'absolute',
+            top: 20,
+            left: 20,
+            color: 'white',
+            fontFamily: 'monospace',
+            background: 'rgba(0,0,0,0.5)',
+            padding: '5px'
+          }}>
+            Current State: {currentBehavior} | 
+            Speed: {currentVelocity.current?.length().toFixed(4)} / {movementControls.maxSpeed.toFixed(4)}
+            {foodTarget && ` | Food Target: (${foodTarget.x.toFixed(2)}, ${foodTarget.z.toFixed(2)})`}
+          </div>
         </Html>
-      )}
+
+        {/* (Optional) Wander Target Marker */}
+        {fishBehavior.state === FishState.WANDER && (
+          <Html
+            position={[wanderTargetState.x, wanderTargetState.y, wanderTargetState.z]}
+            style={{ pointerEvents: 'none' }}
+            key={`${wanderTargetState.x.toFixed(2)}-${wanderTargetState.y.toFixed(2)}-${wanderTargetState.z.toFixed(2)}`}
+          >
+            <div style={{
+              display: 'none',
+              color: '#4169E1',
+              fontSize: '16px',
+              fontWeight: 'bold',
+              opacity: 0.8,
+              transform: 'translate(-50%, -50%)'
+            }}>×</div>
+          </Html>
+        )}
+      </group>
     </>
   )
 }
