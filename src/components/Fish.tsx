@@ -658,24 +658,15 @@ const Fish: React.FC<FishProps> = ({ onPositionUpdate }) => {
               ft!.z,
             ]}
             castShadow
-            scale={1}
           >
-            <circleGeometry args={[0.2, 32]} />
-            <meshBasicMaterial 
+            <sphereGeometry args={[0.025, 12, 12]} />
+            <meshToonMaterial 
               color="#FFFFFF"
-              transparent
-              opacity={1}
-              side={THREE.DoubleSide}
+              emissive="#FFFFFF"
+              emissiveIntensity={0.2}
+              toneMapped={false}
+              gradientMap={gradientMap}
             />
-            <mesh scale={1.2}>
-              <circleGeometry args={[0.2, 32]} />
-              <meshBasicMaterial
-                color="#FFFFFF"
-                transparent
-                opacity={0.5}
-                side={THREE.DoubleSide}
-              />
-            </mesh>
           </mesh>
         ))}
 
