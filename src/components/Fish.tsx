@@ -3,9 +3,10 @@ import { useFrame, RootState, useThree } from '@react-three/fiber'
 import { Html, Line } from '@react-three/drei'
 import * as THREE from 'three'
 import { useControls, Leva } from 'leva'
-import { EffectComposer, Bloom, Pixelation } from '@react-three/postprocessing'
+import { EffectComposer, Bloom, Pixelation, DepthOfField } from '@react-three/postprocessing'
 import { FishBehavior, FishState } from '../steering/FishBehavior'
 import { useSpeechInteraction } from '../hooks/useSpeechInteraction'
+import { AsciiEffect } from 'three/examples/jsm/Addons.js'
 
 interface FishProps {
   onPositionUpdate?: (position: THREE.Vector3) => void
@@ -509,6 +510,7 @@ const Fish: React.FC<FishProps> = ({ onPositionUpdate }) => {
             kernelSize={2}
             resolutionScale={0.5}
           />
+          
         </EffectComposer>
 
         {/* Ground plane for food-click detection */}

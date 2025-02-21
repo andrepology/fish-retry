@@ -90,11 +90,11 @@ const App = () => {
 
   // Add Starfield controls
   const starfieldControls = useControls('Starfield', {
-    density: { value: 200, min: 100, max: 1000, step: 100 },
-    depth: { value: 100, min: 10, max: 200, step: 10 },
-    minSize: { value: 0.1, min: 0.05, max: 0.5, step: 0.05 },
-    maxSize: { value: 0.15, min: 0.1, max: 1, step: 0.05 },
-    speed: { value: 0.01, min: 0, max: 0.1, step: 0.01 },
+    density: { value: 400, min: 100, max: 1000, step: 100 },
+    depth: { value: 70, min: 10, max: 200, step: 10 },
+    minSize: { value: 0.05, min: 0.05, max: 0.5, step: 0.05 },
+    maxSize: { value: 0.10, min: 0.1, max: 1, step: 0.05 },
+    speed: { value: 0.025, min: 0, max: 0.1, step: 0.01 },
     twinkleSpeed: { value: 1.0, min: 0.1, max: 2, step: 0.1 },
     twinkleAmount: { value: 0.6, min: 0, max: 1, step: 0.1 },
   })
