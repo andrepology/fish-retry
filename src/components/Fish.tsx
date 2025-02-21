@@ -59,7 +59,7 @@ const Fish: React.FC<FishProps> = ({ onPositionUpdate }) => {
   const [wanderTargetState, setWanderTargetState] = useState(new THREE.Vector3(0, 0, 0))
 
   // --- Debug state for current behavior (used in overlay) ---
-  const [currentBehavior, setCurrentBehavior] = useState<FishState>(FishState.WANDER)
+  const [currentBehavior, setCurrentBehavior] = useState<FishState>(FishState.WAMDER)
 
   // --- GUI controls for steering and tail behavior ---
   const movementControls = useControls('Movement', {
@@ -381,7 +381,7 @@ const Fish: React.FC<FishProps> = ({ onPositionUpdate }) => {
       }
       tailPositions.current[i].lerp(basePos, 0.1)
       const curDist = tailPositions.current[i].distanceTo(prevPos)
-      if (curDist > spacing * 1.05) {
+      if (curDist > 0 ) {
         tailPositions.current[i].sub(prevPos).setLength(spacing)
         tailPositions.current[i].add(prevPos)
       }
@@ -411,7 +411,7 @@ const Fish: React.FC<FishProps> = ({ onPositionUpdate }) => {
 
     // Compute a smoothed intended direction (to drive the tail)
     const newDirCandidate = computeTargetDirection()
-    lastHeadDir.current.lerp(newDirCandidate, 0.1)
+    lastHeadDir.current.lerp(newDirCandidate, 0.5)
     const intendedDir = lastHeadDir.current.clone()
 
     // Update arrow helper (for debugging)
@@ -433,7 +433,7 @@ const Fish: React.FC<FishProps> = ({ onPositionUpdate }) => {
       
       // Calculate angle based on screen position
       const angleToCenter = Math.atan2(headScreenSpace.x, 1) // 1 is the distance to projection plane
-      const maxTilt = Math.PI / 4 // 45 degrees maximum tilt
+      const maxTilt = 0 // 45 degrees maximum tilt
       const lineLength = 3.5 // Fixed line length
       
       // Create a vector pointing up
