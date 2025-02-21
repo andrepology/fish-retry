@@ -381,7 +381,8 @@ const Fish: React.FC<FishProps> = ({ onPositionUpdate }) => {
       }
       tailPositions.current[i].lerp(basePos, 0.1)
       const curDist = tailPositions.current[i].distanceTo(prevPos)
-      if (curDist > 0 ) {
+      // NOTE: NEEDED for smooth turns. 1.05 does NOT work. Needed for constrained turns.
+      if (curDist > spacing ) {
         tailPositions.current[i].sub(prevPos).setLength(spacing)
         tailPositions.current[i].add(prevPos)
       }
