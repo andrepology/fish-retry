@@ -1,6 +1,6 @@
 import React, { useRef, useMemo, useState, useEffect } from 'react'
 import { useFrame, RootState, useThree } from '@react-three/fiber'
-import { Html, Line } from '@react-three/drei'
+import { Html, Line, OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
 import { useControls, Leva } from 'leva'
 import { EffectComposer, Bloom, Pixelation, DepthOfField } from '@react-three/postprocessing'
@@ -399,6 +399,13 @@ const Fish: React.FC<FishProps> = ({ onPositionUpdate }) => {
   // Import our speech hook.
   const { startRecording, stopRecording, userSpeech, fishResponse } = useSpeechInteraction()
 
+  // Add this with other controls
+  const cameraControls = useControls('Camera', {
+    locked: { value: false, label: 'Lock to Fish' },
+    followDistance: { value: 5, min: 2, max: 10, step: 0.1 },
+    height: { value: 3, min: 1, max: 10, step: 0.1 },
+  }, { collapsed: true })
+
   useFrame((state: RootState, delta: number) => {
     timeRef.current = state.clock.elapsedTime
     if (!headRef.current) return
@@ -466,6 +473,30 @@ const Fish: React.FC<FishProps> = ({ onPositionUpdate }) => {
     if (headRef.current && onPositionUpdate) {
       onPositionUpdate(headRef.current.position.clone())
     }
+
+    // Camera follow logic
+    if (cameraControls.locked && headRef.current) {
+      const targetPosition = headRef.current.position.clone()
+      
+      // Calculate camera position behind the fish
+      const cameraOffset = new THREE.Vector3()
+      
+      // Use the fish's velocity direction, or fallback to last known direction
+      const fishDirection = currentVelocity.current.length() > 0.001
+        ? currentVelocity.current.clone().normalize()
+        : lastHeadDir.current
+
+      // Position camera behind and above fish
+      cameraOffset.copy(fishDirection)
+        .multiplyScalar(-cameraControls.followDistance)
+        .add(new THREE.Vector3(0, cameraControls.height, 0))
+
+      // Smoothly move camera to new position
+      state.camera.position.lerp(targetPosition.add(cameraOffset), 0.1)
+      
+      // Look at fish
+      state.camera.lookAt(headRef.current.position)
+    }
   })
 
   // Add this ref for the Line
@@ -500,6 +531,9 @@ const Fish: React.FC<FishProps> = ({ onPositionUpdate }) => {
 
   return (
     <>
+      {/* Add OrbitControls with enabled state based on lock */}
+      <OrbitControls enabled={!cameraControls.locked} />
+
       {/* Move Bloom inside a group with just the Fish elements */}
       <group>
         <EffectComposer enabled={true}>
