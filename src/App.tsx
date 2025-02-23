@@ -6,14 +6,9 @@ import { useControls } from 'leva'
 import journalBg from './assets/journal.png'
 import * as THREE from 'three'
 import Starfield from './components/Starfield'
+import xBg from './assets/O.jpg'
 
-const blendModes = [
-  'normal', 'multiply', 'screen', 'overlay',
-  'darken', 'lighten', 'color-dodge', 'difference',
-  'exclusion', 'hard-light', 'soft-light'
-] as const
 
-type BlendMode = typeof blendModes[number]
 
 // Create a camera controller component
 const CameraController = ({ target }: { target: THREE.Vector3 }) => {
@@ -45,14 +40,13 @@ const CameraController = ({ target }: { target: THREE.Vector3 }) => {
 }
 
 const App = () => {
-  const [blendMode, setBlendMode] = useState<BlendMode>('exclusion')
+
   const [dragY, setDragY] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
   const [startY, setStartY] = useState(0)
   const [fishPosition, setFishPosition] = useState(new THREE.Vector3(0, 0, 0))
   
-  // Add the ref for CameraControls
-  const controlsRef = useRef<CameraControls>(null)
+
 
   // Add Leva controls for lighting and camera
   const { 
@@ -86,7 +80,7 @@ const App = () => {
     cameraZoom: { value: 50, min: 10, max: 100, step: 1 },
     cameraNear: { value: 0.1, min: 0.1, max: 10, step: 0.1 },
     cameraFar: { value: 1000, min: 100, max: 2000, step: 100 }
-  })
+  }, { collapsed: true })
 
   // Add Starfield controls
   const starfieldControls = useControls('Starfield', {
@@ -119,26 +113,29 @@ const App = () => {
 
   return (
     <div className="relative w-full h-screen pointer-events-auto">
-      {/* Blend Mode Selector */}
-      <div className="fixed top-4 right-4 z-50 pointer-events-auto">
-        <select
-          value={blendMode}
-          onChange={(e) => setBlendMode(e.target.value as BlendMode)}
-          className="bg-black text-white border border-white rounded p-2"
-        >
-          {blendModes.map(mode => (
-            <option key={mode} value={mode}>{mode}</option>
-          ))}
-        </select>
-      </div>
+      {/* Add X background image as the first layer */}
+      <div 
+        className="fixed inset-0 w-full h-screen"
+        style={{ 
+          backgroundImage: `url(${xBg})`,
+          backgroundSize: '130%',
+          backgroundPosition: 'bottom',
+          zIndex: 2,
+          mixBlendMode: 'screen',
+          opacity: 1.0,
+          pointerEvents: 'none',
+        }}
+      />
 
-      {/* Canvas container */}
+      
+
+      {/* Canvas container - update z-index */}
       <div className="fixed inset-0 w-full h-screen" style={{ zIndex: 1 }}>
         <Suspense fallback={<div className="text-white">Loading...</div>}>
           <Canvas
             className="w-full h-full"
             shadows
-            style={{ background: 'black' }}
+            style={{ background: 'transparent' }}
           >
             {/* Add Starfield before other scene elements */}
             <Starfield
@@ -190,18 +187,18 @@ const App = () => {
             {/* Pass the fish position to update our fishPosition state */}
             <Fish onPositionUpdate={setFishPosition} />
             {/* Stats panel for real-time performance measurement */}
-            <Stats />
+            {/* <Stats /> */}
           </Canvas>
         </Suspense>
       </div>
 
-      {/* Background image container */}
+      {/* Journal background - update z-index */}
       <div
         className="fixed inset-0 w-full h-screen overflow-hidden pointer-events-none"
         style={{
-          zIndex: 2,
+          zIndex: 3,
           isolation: 'isolate',
-          mixBlendMode: blendMode,
+          mixBlendMode: "lighten",
         }}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
@@ -213,7 +210,7 @@ const App = () => {
           alt="Journal background"
           className="absolute w-full max-h-[100vh] object-contain cursor-grab active:cursor-grabbing pointer-events-auto"
           style={{
-            filter: `contrast(${1.6 + (dragY / window.innerHeight) * 0.1}) brightness(1.0)`,
+            filter: `contrast(${1.0 + (dragY / window.innerHeight) * 0.1}) brightness(1.0)`,
             top: '80%',
             transform: `translateY(${dragY}px)`,
             userSelect: 'none',

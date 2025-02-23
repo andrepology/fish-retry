@@ -6,7 +6,8 @@ import { useControls, Leva } from 'leva'
 import { EffectComposer, Bloom, Pixelation, DepthOfField } from '@react-three/postprocessing'
 import { FishBehavior, FishState } from '../steering/FishBehavior'
 import { useSpeechInteraction } from '../hooks/useSpeechInteraction'
-import { AsciiEffect } from 'three/examples/jsm/Addons.js'
+
+
 
 interface FishProps {
   onPositionUpdate?: (position: THREE.Vector3) => void
@@ -708,7 +709,7 @@ const Fish: React.FC<FishProps> = ({ onPositionUpdate }) => {
         ))}
 
         {/* Debug Overlay */}
-        <Html fullscreen style={{ pointerEvents: 'none' }}>
+        {/* <Html fullscreen style={{ pointerEvents: 'none' }}>
           <div style={{
             position: 'absolute',
             top: 20,
@@ -722,7 +723,7 @@ const Fish: React.FC<FishProps> = ({ onPositionUpdate }) => {
             Speed: {currentVelocity.current?.length().toFixed(4)} / {movementControls.maxSpeed.toFixed(4)}
             {foodTarget && ` | Food Target: (${foodTarget.x.toFixed(2)}, ${foodTarget.z.toFixed(2)})`}
           </div>
-        </Html>
+        </Html> */}
 
         {/* (Optional) Wander Target Marker */}
         {fishBehavior.state === FishState.WANDER && (
