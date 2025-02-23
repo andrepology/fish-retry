@@ -12,7 +12,7 @@ interface StarfieldProps {
 }
 
 const Starfield: React.FC<StarfieldProps> = ({
-  density = 100,
+  density = 10,
   depth = 50,
   size = { min: 0.1, max: 0.5 },
   speed = 0.02,
@@ -30,7 +30,7 @@ const Starfield: React.FC<StarfieldProps> = ({
     for (let i = 0; i < density; i++) {
       // Distribute stars in a cylinder shape around the camera
       // Increase minimum radius to 40 and maximum to 100
-      const radius = Math.random() * 60
+      const radius = Math.random() * 20
       const theta = Math.random() * Math.PI * 2
       // Adjust z-depth to be further away
       const z = (Math.random() * depth - depth / 2)  - 20 // Offset by -50 to push stars back
