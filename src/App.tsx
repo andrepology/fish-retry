@@ -6,7 +6,8 @@ import { useControls } from 'leva'
 import journalBg from './assets/journal.png'
 import * as THREE from 'three'
 import Starfield from './components/Starfield'
-import xBg from './assets/O.jpg'
+import xBg from './assets/L.jpg'
+import LogInterface from './components/LogInterface'
 
 
 
@@ -45,6 +46,7 @@ const App = () => {
   const [isDragging, setIsDragging] = useState(false)
   const [startY, setStartY] = useState(0)
   const [fishPosition, setFishPosition] = useState(new THREE.Vector3(0, 0, 0))
+  const [showLogInterface, setShowLogInterface] = useState(true)
   
 
 
@@ -111,6 +113,10 @@ const App = () => {
     setIsDragging(false)
   }
 
+  const toggleLogInterface = () => {
+    setShowLogInterface(prev => !prev)
+  }
+
   return (
     <div className="relative w-full h-screen pointer-events-auto">
       {/* Add X background image as the first layer */}
@@ -118,7 +124,7 @@ const App = () => {
         className="fixed inset-0 w-full h-screen"
         style={{ 
           backgroundImage: `url(${xBg})`,
-          backgroundSize: '130%',
+          backgroundSize: '260%',
           backgroundPosition: 'bottom',
           zIndex: 2,
           mixBlendMode: 'screen',
@@ -127,7 +133,23 @@ const App = () => {
         }}
       />
 
-      
+      {/* Toggle Log button */}
+      <button 
+        className="fixed top-4 right-4 z-50 bg-white/10 text-white px-3 py-1 rounded backdrop-blur-sm
+                   hover:bg-white/20 transition-colors duration-200"
+        onClick={toggleLogInterface}
+      >
+        {showLogInterface ? 'Close Log' : 'Open Log'}
+      </button>
+
+      {/* Log Interface - Updated positioning and styling */}
+      {showLogInterface && (
+        <div className="fixed inset-0 z-40 pointer-events-none">
+          <div className="relative w-full max-w-md mx-auto pl-12 pointer-events-auto">
+            <LogInterface />
+          </div>
+        </div>
+      )}
 
       {/* Canvas container - update z-index */}
       <div className="fixed inset-0 w-full h-screen" style={{ zIndex: 1 }}>

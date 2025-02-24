@@ -200,6 +200,8 @@ const Fish: React.FC<FishProps> = ({ onPositionUpdate }) => {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase()
+
+      return 
       if (key === 'r') {
         fishBehavior.resetTarget()
         if (headRef.current) {
