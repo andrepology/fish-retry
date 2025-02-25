@@ -32,6 +32,7 @@ const LogInterface = ({ className = '' }: LogInterfaceProps) => {
   const [isDragging, setIsDragging] = useState(false)
   const [dragStartY, setDragStartY] = useState(0)
   const [journalPosition, setJournalPosition] = useState(400)
+  const [isInputFocused, setIsInputFocused] = useState(false)
   
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -117,7 +118,7 @@ const LogInterface = ({ className = '' }: LogInterfaceProps) => {
   return (
     <div 
       ref={containerRef}
-      className={`${className} text-white  relative overflow-visible max-h-full rounded-xl bg-neutral-900/0 p-1`} 
+      className={`${className} text-white relative overflow-visible max-h-full  p-1`} 
       style={{ 
         zIndex: 10,
         transform: `translateY(${journalPosition}px)`,
@@ -149,7 +150,7 @@ const LogInterface = ({ className = '' }: LogInterfaceProps) => {
             </div>
           </div>
           
-          <div className="flex-grow relative bg-neutral-100/10 backdrop-blur-lg border border-neutral-100/5 p-2 rounded-lg">
+          <div className="flex-grow relative bg-neutral-100/10 backdrop-blur-lg border border-neutral-100/5 p-1.5 pl-2.5 rounded-lg">
             <textarea 
               ref={textareaRef}
               rows={1} 
@@ -159,6 +160,8 @@ const LogInterface = ({ className = '' }: LogInterfaceProps) => {
               value={newThought}
               onChange={handleTextareaChange}
               onKeyDown={handleKeyDown}
+              onFocus={() => setIsInputFocused(true)}
+              onBlur={() => setIsInputFocused(false)}
               style={{ 
                 overflowY: 'hidden',
                 height: '24px',
@@ -180,7 +183,7 @@ const LogInterface = ({ className = '' }: LogInterfaceProps) => {
         <hr className="border-white/20 my-4" />
 
         <ul className="thoughts space-y-4">
-          {thoughts.map(thought => (
+          {thoughts.map((thought, index) => (
             <li 
               key={thought.id} 
               className={`thought relative p-2 rounded-md transition-all duration-300 ${hoveredThoughtId === thought.id ? 'bg-white/10' : ''}`}
@@ -190,7 +193,7 @@ const LogInterface = ({ className = '' }: LogInterfaceProps) => {
             >
               <textarea 
                 rows={1} 
-                className="w-full bg-transparent border-none text-white resize-none outline-none pr-16 transition-all duration-300"
+                className="w-full bg-transparent border-none text-white resize-none outline-none pr-16 transition-all"
                 placeholder="Erase with Backspace ⌫"
                 spellCheck="false"
                 value={thought.content}
@@ -199,10 +202,15 @@ const LogInterface = ({ className = '' }: LogInterfaceProps) => {
                   filter: focusedThoughtId === thought.id 
                     ? 'blur(0) opacity(1)' 
                     : hoveredThoughtId === thought.id 
-                      ? 'blur(2px) opacity(0.6)' 
-                      : 'blur(4px) opacity(0.3)',
+                      ? 'blur(0px) opacity(0.6)' 
+                      : isInputFocused
+                        ? `blur(${Math.max(4, index * 4)}px) opacity(${Math.max(0.2, 0.8 - index * 0.05)})`
+                        : 'blur(3px) opacity(0.7)',
                   overflowY: 'hidden',
-                  height: `${Math.max(24, Math.min(24 * 9, (thought.content.split('\n').length * 24) || 48))}px`
+                  height: `${Math.max(24, Math.min(24 * 9, (thought.content.split('\n').length * 24) || 48))}px`,
+                  transitionProperty: 'filter, opacity',
+                  transitionDuration: '400ms',
+                  transitionDelay: isInputFocused ? `${index * 50}ms` : '0ms',
                 }}
               />
               {hoveredThoughtId === thought.id && (

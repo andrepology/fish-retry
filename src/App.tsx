@@ -125,7 +125,7 @@ const App = () => {
         style={{ 
           backgroundImage: `url(${xBg})`,
           backgroundSize: '230%',
-          backgroundPosition: 'center',
+          backgroundPosition: 'center 65%',
           zIndex: 2,
           mixBlendMode: 'screen',
           opacity: 1.0,
@@ -145,7 +145,7 @@ const App = () => {
       )}
 
       {/* Canvas container - update z-index */}
-      <div className="fixed inset-0 w-full h-screen" style={{ zIndex: 1 }}>
+      <div className="fixed invisible inset-0 w-full h-screen" style={{ zIndex: 1 }}>
         <Suspense fallback={<div className="text-white">Loading...</div>}>
           <Canvas
             className="w-full h-full"
