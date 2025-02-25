@@ -31,7 +31,7 @@ const LogInterface = ({ className = '' }: LogInterfaceProps) => {
   const [focusedThoughtId, setFocusedThoughtId] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [dragStartY, setDragStartY] = useState(0)
-  const [journalPosition, setJournalPosition] = useState(600)
+  const [journalPosition, setJournalPosition] = useState(400)
   
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -149,11 +149,11 @@ const LogInterface = ({ className = '' }: LogInterfaceProps) => {
             </div>
           </div>
           
-          <div className="flex-grow relative bg-white/0 p-1.5 rounded-lg">
+          <div className="flex-grow relative bg-neutral-100/10 backdrop-blur-lg border border-neutral-100/5 p-2 rounded-lg">
             <textarea 
               ref={textareaRef}
               rows={1} 
-              className="w-full bg-transparent border-none text-white resize-none outline-none py-1 pr-8"
+              className="w-full bg-transparent border-none text-white resize-none outline-none py-0.5 pr-8 placeholder:text-neutral-100/80"
               placeholder="What's on your mind?"
               spellCheck="false"
               value={newThought}
