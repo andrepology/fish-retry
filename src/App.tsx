@@ -118,7 +118,7 @@ const App = () => {
   }
 
   return (
-    <div className="relative w-full h-screen pointer-events-auto">
+    <div className="relative scale-100  transition-scale duration-300 w-full h-screen pointer-events-auto">
       {/* Add X background image as the first layer */}
       <div 
         className="fixed inset-0 w-full h-screen"
@@ -127,7 +127,7 @@ const App = () => {
           backgroundSize: '230%',
           backgroundPosition: 'center 65%',
           zIndex: 2,
-          mixBlendMode: 'screen',
+          mixBlendMode: 'lighten',
           opacity: 1.0,
           pointerEvents: 'none',
         }}
@@ -138,14 +138,14 @@ const App = () => {
       {/* Log Interface - Updated positioning and styling */}
       {showLogInterface && (
         <div className="fixed inset-0 z-40 pointer-events-none">
-          <div className="relative w-full max-w-md mx-auto pl-12 pointer-events-auto">
+          <div className="relative w-full pr-10 pl-12 max-w-lg mx-auto pointer-events-auto">
             <LogInterface />
           </div>
         </div>
       )}
 
       {/* Canvas container - update z-index */}
-      <div className="fixed invisible inset-0 w-full h-screen" style={{ zIndex: 1 }}>
+      <div className="fixed inset-0 w-full h-screen" style={{ zIndex: 1 }}>
         <Suspense fallback={<div className="text-white">Loading...</div>}>
           <Canvas
             className="w-full h-full"

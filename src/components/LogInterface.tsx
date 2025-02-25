@@ -150,7 +150,13 @@ const LogInterface = ({ className = '' }: LogInterfaceProps) => {
             </div>
           </div>
           
-          <div className="flex-grow relative bg-neutral-100/10 backdrop-blur-lg border border-neutral-100/5 p-1.5 pl-2.5 rounded-lg">
+          <div 
+            className="flex-grow relative bg-neutral-100/10 backdrop-blur-lg border border-neutral-100/5 p-1.5 pl-2.5 rounded-lg transition-all duration-300"
+            style={{
+              transform: isInputFocused ? 'translate(-1px, -1px)' : 'translate(0, 0)',
+              boxShadow: isInputFocused ? '3px 3px 15px rgba(0, 0, 0, 0.1)' : 'none'
+            }}
+          >
             <textarea 
               ref={textareaRef}
               rows={1} 
