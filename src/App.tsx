@@ -133,14 +133,7 @@ const App = () => {
         }}
       />
 
-      {/* Toggle Log button */}
-      <button 
-        className="fixed top-4 right-4 z-50 bg-white/10 text-white px-3 py-1 rounded backdrop-blur-sm
-                   hover:bg-white/20 transition-colors duration-200"
-        onClick={toggleLogInterface}
-      >
-        {showLogInterface ? 'Close Log' : 'Open Log'}
-      </button>
+      
 
       {/* Log Interface - Updated positioning and styling */}
       {showLogInterface && (
