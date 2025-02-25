@@ -6,7 +6,7 @@ import { useControls } from 'leva'
 import journalBg from './assets/journal.png'
 import * as THREE from 'three'
 import Starfield from './components/Starfield'
-import xBg from './assets/L.jpg'
+import xBg from './assets/X.jpg'
 import LogInterface from './components/LogInterface'
 
 
@@ -124,8 +124,8 @@ const App = () => {
         className="fixed inset-0 w-full h-screen"
         style={{ 
           backgroundImage: `url(${xBg})`,
-          backgroundSize: '260%',
-          backgroundPosition: 'bottom',
+          backgroundSize: '230%',
+          backgroundPosition: 'center',
           zIndex: 2,
           mixBlendMode: 'screen',
           opacity: 1.0,
@@ -207,34 +207,7 @@ const App = () => {
         </Suspense>
       </div>
 
-      {/* Journal background - update z-index */}
-      <div
-        className="fixed inset-0 w-full h-screen overflow-hidden pointer-events-none"
-        style={{
-          zIndex: 3,
-          isolation: 'isolate',
-          mixBlendMode: "lighten",
-        }}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-      >
-        <img
-          src={journalBg}
-          alt="Journal background"
-          className="absolute w-full max-h-[100vh] object-contain cursor-grab active:cursor-grabbing pointer-events-auto"
-          style={{
-            filter: `contrast(${1.0 + (dragY / window.innerHeight) * 0.1}) brightness(1.0)`,
-            top: '80%',
-            transform: `translateY(${dragY}px)`,
-            userSelect: 'none',
-            WebkitUserDrag: 'none' as any,
-            draggable: false,
-          }}
-          onDragStart={(e) => e.preventDefault()}
-        />
-      </div>
+      
     </div>
   )
 }
