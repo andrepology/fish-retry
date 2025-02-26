@@ -2,11 +2,11 @@ import { Suspense, useState, useRef, useEffect } from 'react'
 import { Canvas, useThree, useFrame } from '@react-three/fiber'
 import { OrthographicCamera, Stats, CameraControls } from '@react-three/drei'
 import Fish from './components/Fish'
-import { useControls } from 'leva'
+import { useControls, Leva, button } from 'leva'
 import journalBg from './assets/journal.png'
 import * as THREE from 'three'
 import Starfield from './components/Starfield'
-import xBg from './assets/X.jpg'
+import xBg from './assets/L.jpg'
 import LogInterface from './components/LogInterface'
 
 
@@ -95,6 +95,13 @@ const App = () => {
     twinkleAmount: { value: 0.6, min: 0, max: 1, step: 0.1 },
   })
 
+  const [{ leva }, set] = useControls(() => ({
+    leva: {
+      value: false,
+      label: 'Show Controls'
+    }
+  }))
+
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault()
     setIsDragging(true)
@@ -118,97 +125,100 @@ const App = () => {
   }
 
   return (
-    <div className="relative scale-100  transition-scale duration-300 w-full h-screen pointer-events-auto">
-      {/* Add X background image as the first layer */}
-      <div 
-        className="fixed inset-0 w-full h-screen"
-        style={{ 
-          backgroundImage: `url(${xBg})`,
-          backgroundSize: '230%',
-          backgroundPosition: 'center 65%',
-          zIndex: 2,
-          mixBlendMode: 'lighten',
-          opacity: 1.0,
-          pointerEvents: 'none',
-        }}
-      />
+    <>
+      <Leva hidden={!leva} />
+      <div className="relative scale-100  transition-scale duration-300 w-full h-screen pointer-events-auto">
+        {/* Add X background image as the first layer */}
+        <div 
+          className="fixed inset-0 w-full h-screen"
+          style={{ 
+            backgroundImage: `url(${xBg})`,
+            backgroundSize: '230%',
+            backgroundPosition: 'center 65%',
+            zIndex: 2,
+            mixBlendMode: 'lighten',
+            opacity: 1.0,
+            pointerEvents: 'none',
+          }}
+        />
 
-      
+        
 
-      {/* Log Interface - Updated positioning and styling */}
-      {showLogInterface && (
-        <div className="fixed inset-0 z-40 pointer-events-none">
-          <div className="relative w-full pr-10 pl-12 max-w-lg mx-auto pointer-events-auto">
-            <LogInterface />
+        {/* Log Interface - Updated positioning and styling */}
+        {showLogInterface && (
+          <div className="fixed inset-0 z-40 pointer-events-none">
+            <div className="relative w-full pr-10 pl-12 max-w-lg mx-auto pointer-events-auto">
+              <LogInterface />
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Canvas container - update z-index */}
-      <div className="fixed inset-0 w-full h-screen" style={{ zIndex: 1 }}>
-        <Suspense fallback={<div className="text-white">Loading...</div>}>
-          <Canvas
-            className="w-full h-full"
-            shadows
-            style={{ background: 'transparent' }}
-          >
-            {/* Add Starfield before other scene elements */}
-            <Starfield
-              density={starfieldControls.density}
-              depth={starfieldControls.depth}
-              size={{ min: starfieldControls.minSize, max: starfieldControls.maxSize }}
-              speed={starfieldControls.speed}
-              twinkleSpeed={starfieldControls.twinkleSpeed}
-              twinkleAmount={starfieldControls.twinkleAmount}
-            />
-
-            <OrthographicCamera 
-              makeDefault 
-              position={cameraPosition} 
-              rotation={[-Math.PI / 2, 0, 0]} 
-              zoom={cameraZoom}
-              near={cameraNear}
-              far={cameraFar}
-            />
-
-            <CameraController target={fishPosition} />
-
-            <group>
-              <ambientLight intensity={ambientIntensity} />
-              <directionalLight
-                position={lightPosition}
-                intensity={directionalIntensity}
-                castShadow
-                shadow-mapSize-width={shadowMapSize}
-                shadow-mapSize-height={shadowMapSize}
-                shadow-camera-left={-shadowCameraSize}
-                shadow-camera-right={shadowCameraSize}
-                shadow-camera-top={shadowCameraSize}
-                shadow-camera-bottom={-shadowCameraSize}
-                shadow-camera-near={0.1}
-                shadow-camera-far={100}
-                shadow-bias={shadowBias}
+        {/* Canvas container - update z-index */}
+        <div className="fixed inset-0 w-full h-screen" style={{ zIndex: 1 }}>
+          <Suspense fallback={<div className="text-white">Loading...</div>}>
+            <Canvas
+              className="w-full h-full"
+              shadows
+              style={{ background: 'transparent' }}
+            >
+              {/* Add Starfield before other scene elements */}
+              <Starfield
+                density={starfieldControls.density}
+                depth={starfieldControls.depth}
+                size={{ min: starfieldControls.minSize, max: starfieldControls.maxSize }}
+                speed={starfieldControls.speed}
+                twinkleSpeed={starfieldControls.twinkleSpeed}
+                twinkleAmount={starfieldControls.twinkleAmount}
               />
-              <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow position={[0, -0.5, 0]}>
-                <planeGeometry args={[100, 100]} />
-                <meshStandardMaterial
-                  color="#202020"
-                  roughness={0.2 }
-                  metalness={0}
+
+              <OrthographicCamera 
+                makeDefault 
+                position={cameraPosition} 
+                rotation={[-Math.PI / 2, 0, 0]} 
+                zoom={cameraZoom}
+                near={cameraNear}
+                far={cameraFar}
+              />
+
+              <CameraController target={fishPosition} />
+
+              <group>
+                <ambientLight intensity={ambientIntensity} />
+                <directionalLight
+                  position={lightPosition}
+                  intensity={directionalIntensity}
+                  castShadow
+                  shadow-mapSize-width={shadowMapSize}
+                  shadow-mapSize-height={shadowMapSize}
+                  shadow-camera-left={-shadowCameraSize}
+                  shadow-camera-right={shadowCameraSize}
+                  shadow-camera-top={shadowCameraSize}
+                  shadow-camera-bottom={-shadowCameraSize}
+                  shadow-camera-near={0.1}
+                  shadow-camera-far={100}
+                  shadow-bias={shadowBias}
                 />
-              </mesh>
-            </group>
+                <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow position={[0, -0.5, 0]}>
+                  <planeGeometry args={[100, 100]} />
+                  <meshStandardMaterial
+                    color="#202020"
+                    roughness={0.2 }
+                    metalness={0}
+                  />
+                </mesh>
+              </group>
 
-            {/* Pass the fish position to update our fishPosition state */}
-            <Fish onPositionUpdate={setFishPosition} />
-            {/* Stats panel for real-time performance measurement */}
-            {/* <Stats /> */}
-          </Canvas>
-        </Suspense>
+              {/* Pass the fish position to update our fishPosition state */}
+              {/* <Fish onPositionUpdate={setFishPosition} /> */}
+              {/* Stats panel for real-time performance measurement */}
+              {/* <Stats /> */}
+            </Canvas>
+          </Suspense>
+        </div>
+
+        
       </div>
-
-      
-    </div>
+    </>
   )
 }
 
