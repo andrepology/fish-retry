@@ -134,6 +134,11 @@ const LogInterface = ({ className = '' }: LogInterfaceProps) => {
             onMouseMove={handleDragMove}
             onMouseUp={handleDragEnd}
             onMouseLeave={handleDragEnd}
+            style={{
+              opacity: isInputFocused ? '0' : '1',
+              transition: 'opacity 300ms ease-out',
+              pointerEvents: isInputFocused ? 'none' : 'auto'
+            }}
           >
             <div 
               className="outer-circle  w-8 h-8 rounded-full bg-white/30 flex items-center justify-center transition-all duration-150"
@@ -161,7 +166,7 @@ const LogInterface = ({ className = '' }: LogInterfaceProps) => {
               ref={textareaRef}
               rows={1} 
               className="w-full bg-transparent border-none text-white resize-none outline-none py-0.5 pr-8 placeholder:text-neutral-100/80"
-              placeholder="What's on your mind?"
+              placeholder="do, reflect, repeat, become"
               spellCheck="false"
               value={newThought}
               onChange={handleTextareaChange}
